@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL_CACHE = `newsdash-shell-${VERSION}`;
 const RUNTIME_CACHE = `newsdash-runtime-${VERSION}`;
 
@@ -42,18 +42,15 @@ self.addEventListener('fetch', (e) => {
   const sameOrigin = url.origin === self.location.origin;
 
   if (sameOrigin) {
-    // App shell: cache-first, fall back to network.
+    // App shell: network-first so updates apply immediately when online.
     e.respondWith(
-      caches.match(req).then((hit) =>
-        hit ||
-        fetch(req).then((res) => {
-          if (res.ok) {
-            const clone = res.clone();
-            caches.open(SHELL_CACHE).then((c) => c.put(req, clone));
-          }
-          return res;
-        }).catch(() => caches.match('index.html'))
-      )
+      fetch(req).then((res) => {
+        if (res.ok) {
+          const clone = res.clone();
+          caches.open(SHELL_CACHE).then((c) => c.put(req, clone));
+        }
+        return res;
+      }).catch(() => caches.match(req).then((hit) => hit || caches.match('index.html')))
     );
     return;
   }

@@ -59,6 +59,7 @@ const state = {
   starred: new Set(JSON.parse(localStorage.getItem(STARRED_KEY) || '[]')),
   settings: loadSettings(),
   loading: false,
+  errors: [],
 };
 
 function loadSettings() {
@@ -196,6 +197,7 @@ async function fetchFeed(feed) {
       })).filter((a) => a.title && a.link);
     } catch (e) {
       lastErr = e;
+      state.errors.push(`${feed.name} via ${proxy.kind}: ${e.message}`);
     }
   }
   throw lastErr || new Error('all proxies failed');
@@ -212,6 +214,7 @@ async function loadAll({ force = false } = {}) {
   }
 
   state.loading = true;
+  state.errors = [];
   if (!state.articles.length) renderSkeletons();
   setSpinner(true);
 
@@ -348,11 +351,13 @@ function renderEmpty() {
     </div>`;
   }
   if (!state.articles.length && !state.loading) {
+    const sample = state.errors.slice(0, 3).map(escapeHtml).join('<br>');
     return `<div class="empty">
       <span class="empty-emoji">📡</span>
       <h3>Couldn’t load articles</h3>
-      <p>Check your connection or try again.</p>
+      <p>All proxies failed. Check your connection or try again.</p>
       <button id="emptyRetry">Retry</button>
+      ${sample ? `<details class="err-details"><summary>Show errors</summary><pre>${sample}</pre></details>` : ''}
     </div>`;
   }
   return `<div class="empty">

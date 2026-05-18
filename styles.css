@@ -309,6 +309,19 @@ button { font: inherit; color: inherit; }
   font-weight: 600;
   cursor: pointer;
 }
+.err-details { margin-top: 18px; text-align: left; font-size: 12px; }
+.err-details summary { color: var(--muted); cursor: pointer; }
+.err-details pre {
+  margin-top: 8px;
+  padding: 10px;
+  background: var(--bg-elev-2);
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--danger);
+  font-size: 11px;
+  line-height: 1.4;
+}
 
 .fab {
   position: fixed;
