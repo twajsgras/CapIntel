@@ -1,14 +1,16 @@
 'use strict';
 
-const VERSION = 'v7';
-const SHELL_CACHE = `newsdash-shell-${VERSION}`;
-const RUNTIME_CACHE = `newsdash-runtime-${VERSION}`;
+const VERSION = 'v8';
+const SHELL_CACHE = `capintel-shell-${VERSION}`;
+const RUNTIME_CACHE = `capintel-runtime-${VERSION}`;
 
 const SHELL = [
   './',
   'index.html',
   'styles.css',
-  'app.js',
+  'app-1.js',
+  'app-2.js',
+  'app-3.js',
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',
@@ -42,7 +44,6 @@ self.addEventListener('fetch', (e) => {
   const sameOrigin = url.origin === self.location.origin;
 
   if (sameOrigin) {
-    // App shell: network-first so updates apply immediately when online.
     e.respondWith(
       fetch(req).then((res) => {
         if (res.ok) {
@@ -55,7 +56,6 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Cross-origin (RSS proxy, favicons): stale-while-revalidate.
   e.respondWith(
     caches.open(RUNTIME_CACHE).then(async (cache) => {
       const cached = await cache.match(req);

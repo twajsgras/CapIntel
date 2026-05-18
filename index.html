@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>News Dash</title>
+  <title>CapIntel</title>
   <meta name="description" content="Personal news + stock dashboard for AI, Fintech, and Energy." />
 
   <link rel="manifest" href="manifest.webmanifest" />
@@ -15,14 +15,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="News Dash" />
+  <meta name="apple-mobile-web-app-title" content="CapIntel" />
 
-  <link rel="stylesheet" href="styles.css?v=7" />
+  <link rel="stylesheet" href="styles.css?v=8" />
 </head>
 <body>
   <header class="app-header">
     <div class="header-row">
-      <h1 class="brand">News<span class="brand-accent">·</span>Dash</h1>
+      <h1 class="brand">Cap<span class="brand-accent">·</span>Intel</h1>
       <div class="header-actions">
         <button id="starredBtn" class="icon-btn" aria-label="Show starred" title="Starred">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
@@ -87,8 +87,8 @@
   <script>
     (function () {
       if (!('serviceWorker' in navigator)) return;
-      if (sessionStorage.getItem('sw-reset-v6')) return;
-      sessionStorage.setItem('sw-reset-v6', '1');
+      if (sessionStorage.getItem('sw-reset-v8')) return;
+      sessionStorage.setItem('sw-reset-v8', '1');
       (async () => {
         try {
           const regs = await navigator.serviceWorker.getRegistrations();
@@ -103,6 +103,8 @@
       })();
     })();
   </script>
-  <script src="app.js?v=7" defer></script>
+  <script src="app-1.js?v=8" defer></script>
+  <script src="app-2.js?v=8" defer></script>
+  <script src="app-3.js?v=8" defer></script>
 </body>
 </html>
