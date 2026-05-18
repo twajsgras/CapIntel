@@ -3,7 +3,6 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
-      - claude/news-aggregator-pwa-NiD39
       - main
   workflow_dispatch:
 
