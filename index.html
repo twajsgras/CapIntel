@@ -17,7 +17,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="News Dash" />
 
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=5" />
 </head>
 <body>
   <header class="app-header">
@@ -74,6 +74,28 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="app.js" defer></script>
+  <script>
+    // One-shot: wipe any old service worker + caches when this index.html
+    // version first reaches the client. Prevents an old cache-first SW from
+    // pinning stale app.js / styles.css.
+    (function () {
+      if (!('serviceWorker' in navigator)) return;
+      if (sessionStorage.getItem('sw-reset-v5')) return;
+      sessionStorage.setItem('sw-reset-v5', '1');
+      (async () => {
+        try {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map((r) => r.unregister()));
+          if (window.caches) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((k) => caches.delete(k)));
+          }
+        } finally {
+          location.reload();
+        }
+      })();
+    })();
+  </script>
+  <script src="app.js?v=5" defer></script>
 </body>
 </html>
