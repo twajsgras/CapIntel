@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'v5';
+const VERSION = 'v6';
 const SHELL_CACHE = `newsdash-shell-${VERSION}`;
 const RUNTIME_CACHE = `newsdash-runtime-${VERSION}`;
 

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>News Dash</title>
-  <meta name="description" content="Personal news aggregator for AI, Fintech, and Energy." />
+  <meta name="description" content="Personal news + stock dashboard for AI, Fintech, and Energy." />
 
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" content="#0b0d10" media="(prefers-color-scheme: dark)" />
@@ -17,7 +17,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="News Dash" />
 
-  <link rel="stylesheet" href="styles.css?v=5" />
+  <link rel="stylesheet" href="styles.css?v=6" />
 </head>
 <body>
   <header class="app-header">
@@ -34,6 +34,11 @@
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94a7.93 7.93 0 0 0 .05-.94 7.93 7.93 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.84 7.84 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7.84 7.84 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.65 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.93 7.93 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .61.22l2.39-.96c.5.39 1.05.71 1.62.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54c.57-.23 1.12-.55 1.62-.94l2.39.96a.5.5 0 0 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64ZM12 15.5A3.5 3.5 0 1 1 15.5 12 3.5 3.5 0 0 1 12 15.5Z"/></svg>
         </button>
       </div>
+    </div>
+
+    <div class="seg" role="tablist" id="seg">
+      <button class="seg-btn active" data-view="news" role="tab">Feed</button>
+      <button class="seg-btn" data-view="stocks" role="tab">Stocks</button>
     </div>
 
     <div class="chips" role="tablist" id="chips">
@@ -72,6 +77,10 @@
     </form>
   </dialog>
 
+  <dialog id="stockDialog" class="dialog stock-dialog">
+    <div class="dialog-inner stock-inner" id="stockInner"></div>
+  </dialog>
+
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script>
@@ -80,8 +89,8 @@
     // pinning stale app.js / styles.css.
     (function () {
       if (!('serviceWorker' in navigator)) return;
-      if (sessionStorage.getItem('sw-reset-v5')) return;
-      sessionStorage.setItem('sw-reset-v5', '1');
+      if (sessionStorage.getItem('sw-reset-v6')) return;
+      sessionStorage.setItem('sw-reset-v6', '1');
       (async () => {
         try {
           const regs = await navigator.serviceWorker.getRegistrations();
@@ -96,6 +105,6 @@
       })();
     })();
   </script>
-  <script src="app.js?v=5" defer></script>
+  <script src="app.js?v=6" defer></script>
 </body>
 </html>
