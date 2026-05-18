@@ -29,7 +29,22 @@ const STARRED_KEY = 'newsdash:starred:v1';
 const SETTINGS_KEY = 'newsdash:settings:v1';
 const THEME_KEY = 'newsdash:theme';
 const VIEW_KEY = 'newsdash:view';
-const PROXY = (url) => `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}&count=20`;
+const PROXIES = [
+  // JSON proxy — fastest path, but rate-limited and sometimes flaky.
+  {
+    kind: 'json',
+    build: (url) => `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}&count=25`,
+  },
+  // Raw RSS via CORS proxy — parsed client-side.
+  {
+    kind: 'xml',
+    build: (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  },
+  {
+    kind: 'xml',
+    build: (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  },
+];
 
 const TOPIC_LABEL = { ai: 'AI', fintech: 'Fintech', energy: 'Energy' };
 
@@ -107,32 +122,83 @@ function escapeHtml(s) {
 function readCache() {
   try {
     const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
-    if (!c || !c.articles) return null;
+    if (!c || !Array.isArray(c.articles) || !c.articles.length) return null;
     return c;
   } catch { return null; }
 }
 
 function writeCache(articles) {
+  if (!articles || !articles.length) return;
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify({ articles, fetchedAt: Date.now() }));
   } catch {}
 }
 
-async function fetchFeed(feed) {
-  const res = await fetch(PROXY(feed.url), { cache: 'no-store' });
+function parseRssXml(xmlText) {
+  const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+  if (doc.querySelector('parsererror')) throw new Error('xml parse error');
+  const root = doc.documentElement;
+  const isAtom = root.nodeName.toLowerCase() === 'feed';
+  const nodes = isAtom ? doc.getElementsByTagName('entry') : doc.getElementsByTagName('item');
+  const out = [];
+  for (const n of nodes) {
+    const text = (sel) => {
+      const el = n.getElementsByTagName(sel)[0];
+      return el ? (el.textContent || '').trim() : '';
+    };
+    let link = '';
+    if (isAtom) {
+      const links = n.getElementsByTagName('link');
+      for (const l of links) {
+        const rel = l.getAttribute('rel');
+        if (!rel || rel === 'alternate') { link = l.getAttribute('href') || ''; break; }
+      }
+    } else {
+      link = text('link');
+    }
+    out.push({
+      title: text('title'),
+      link,
+      description: text(isAtom ? 'summary' : 'description') || text('content'),
+      pubDate: text(isAtom ? 'updated' : 'pubDate') || text('published') || text('dc:date'),
+      guid: text(isAtom ? 'id' : 'guid') || link,
+    });
+  }
+  return out;
+}
+
+async function fetchViaProxy(feed, proxy) {
+  const res = await fetch(proxy.build(feed.url), { cache: 'no-store' });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  if (data.status !== 'ok' || !Array.isArray(data.items)) throw new Error(data.message || 'bad response');
-  return data.items.map((it) => ({
-    title: stripHtml(it.title),
-    link: it.link,
-    description: stripHtml(it.description || it.content || '').slice(0, 300),
-    publishedAt: it.pubDate || null,
-    source: feed.name,
-    sourceId: feed.id,
-    topic: feed.topic,
-    guid: it.guid || it.link,
-  })).filter((a) => a.title && a.link);
+  if (proxy.kind === 'json') {
+    const data = await res.json();
+    if (data.status !== 'ok' || !Array.isArray(data.items)) throw new Error(data.message || 'bad response');
+    return data.items;
+  }
+  const text = await res.text();
+  return parseRssXml(text);
+}
+
+async function fetchFeed(feed) {
+  let lastErr;
+  for (const proxy of PROXIES) {
+    try {
+      const items = await fetchViaProxy(feed, proxy);
+      return items.map((it) => ({
+        title: stripHtml(it.title),
+        link: it.link,
+        description: stripHtml(it.description || it.content || '').slice(0, 300),
+        publishedAt: it.pubDate || null,
+        source: feed.name,
+        sourceId: feed.id,
+        topic: feed.topic,
+        guid: it.guid || it.link,
+      })).filter((a) => a.title && a.link);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error('all proxies failed');
 }
 
 async function loadAll({ force = false } = {}) {
