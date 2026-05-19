@@ -5,6 +5,10 @@ function setView(view) {
   localStorage.setItem(VIEW_KEY, view);
   $$('.seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
   if (view === 'stocks' && !Object.keys(state.stocks).length) loadStocks();
+  state.query = '';
+  state.searchResults = [];
+  const search = $('#search');
+  if (search) { search.value = ''; search.parentElement.classList.remove('has-value'); }
   render();
 }
 
@@ -107,6 +111,22 @@ function refresh() {
   else loadNews({ force: true });
 }
 
+const debouncedSearch = debounce(async (q) => {
+  if (state.view !== 'stocks') return;
+  if (!q || !q.trim()) {
+    state.searchResults = [];
+    state.searching = false;
+    render();
+    return;
+  }
+  state.searching = true;
+  render();
+  const results = await searchTickers(q);
+  state.searching = false;
+  state.searchResults = results;
+  render();
+}, 250);
+
 function init() {
   const savedTheme = localStorage.getItem(THEME_KEY);
   if (savedTheme) setTheme(savedTheme);
@@ -146,10 +166,15 @@ function init() {
   search.addEventListener('input', () => {
     state.query = search.value.trim();
     wrap.classList.toggle('has-value', !!state.query);
-    render();
+    if (state.view === 'stocks') {
+      debouncedSearch(state.query);
+    } else {
+      render();
+    }
   });
   $('#clearSearch').addEventListener('click', () => {
     search.value = ''; state.query = '';
+    state.searchResults = [];
     wrap.classList.remove('has-value');
     render(); search.focus();
   });
