@@ -9,29 +9,26 @@ const FEEDS = [
   { id: 'mit-ai',   topic: 'ai',      name: 'MIT Tech Review',    url: 'https://www.technologyreview.com/topic/artificial-intelligence/feed' },
   { id: 'ars-ai',   topic: 'ai',      name: 'Ars Technica AI',    url: 'https://arstechnica.com/ai/feed/' },
   { id: 'hn-ai',    topic: 'ai',      name: 'Hacker News',        url: 'https://hnrss.org/newest?q=AI+OR+LLM+OR+%22machine+learning%22&points=100' },
-  // AI — Substacks / newsletters
   { id: 'latent',   topic: 'ai',      name: 'Latent Space',       url: 'https://www.latent.space/feed' },
   { id: 'oneuse',   topic: 'ai',      name: 'One Useful Thing',   url: 'https://www.oneusefulthing.org/feed' },
   { id: 'importai', topic: 'ai',      name: 'Import AI',          url: 'https://importai.substack.com/feed' },
   { id: 'snakeoil', topic: 'ai',      name: 'AI Snake Oil',       url: 'https://www.aisnakeoil.com/feed' },
 
-  // Fintech — mainstream
+  // Fintech
   { id: 'tc-fin',   topic: 'fintech', name: 'TechCrunch Fintech', url: 'https://techcrunch.com/category/fintech/feed/' },
   { id: 'finextra', topic: 'fintech', name: 'Finextra',           url: 'https://www.finextra.com/rss/headlines.aspx' },
   { id: 'block',    topic: 'fintech', name: 'The Block',          url: 'https://www.theblock.co/rss.xml' },
   { id: 'bankdive', topic: 'fintech', name: 'Banking Dive',       url: 'https://www.bankingdive.com/feeds/news/' },
   { id: 'pymnts',   topic: 'fintech', name: 'PYMNTS',             url: 'https://www.pymnts.com/feed/' },
-  // Fintech — Substacks
   { id: 'netint',   topic: 'fintech', name: 'Net Interest',       url: 'https://www.netinterest.co/feed' },
   { id: 'brain',    topic: 'fintech', name: 'Fintech Brainfood',  url: 'https://www.fintechbrainfood.com/feed' },
   { id: 'bitsmoney',topic: 'fintech', name: 'Bits about Money',   url: 'https://www.bitsaboutmoney.com/feed' },
 
-  // Energy — mainstream
+  // Energy
   { id: 'canary',   topic: 'energy',  name: 'Canary Media',       url: 'https://www.canarymedia.com/articles/rss.xml' },
   { id: 'utildive', topic: 'energy',  name: 'Utility Dive',       url: 'https://www.utilitydive.com/feeds/news/' },
   { id: 'oilprice', topic: 'energy',  name: 'OilPrice.com',       url: 'https://oilprice.com/rss/main' },
   { id: 'heatmap',  topic: 'energy',  name: 'Heatmap News',       url: 'https://heatmap.news/feed' },
-  // Energy — Substacks
   { id: 'volts',    topic: 'energy',  name: 'Volts',              url: 'https://www.volts.wtf/feed' },
   { id: 'conphys',  topic: 'energy',  name: 'Construction Physics',url:'https://www.construction-physics.com/feed' },
 ];
@@ -66,18 +63,41 @@ const STOCKS = [
   { ticker: 'TSLA',  name: 'Tesla',                  sector: 'energy' },
 ];
 
-const RANGES = [
-  { key: '1d', label: '1D', range: '1d',  interval: '5m'  },
-  { key: '5d', label: '1W', range: '5d',  interval: '30m' },
-  { key: '1mo', label: '1M', range: '1mo', interval: '1d'  },
-  { key: '3mo', label: '3M', range: '3mo', interval: '1d'  },
-  { key: '1y',  label: '1Y', range: '1y',  interval: '1wk' },
-];
+// Fallback valuation snapshot. Used when Yahoo's quote endpoint is
+// rate-limited or auth-walled. Refresh by editing periodically.
+const VALUATION_DEFAULTS = {
+  NVDA:  { marketCap: 3.10e12, trailingPE: 50,  forwardPE: 33,  priceToSales: 25,  priceToBook: 45, dividendYield: 0.0001, eps: 2.50, beta: 1.7 },
+  MSFT:  { marketCap: 3.10e12, trailingPE: 36,  forwardPE: 31,  priceToSales: 13,  priceToBook: 11, dividendYield: 0.0072, eps: 11.8, beta: 0.9 },
+  GOOGL: { marketCap: 2.10e12, trailingPE: 23,  forwardPE: 20,  priceToSales: 6.5, priceToBook: 7,  dividendYield: 0.0048, eps: 7.5,  beta: 1.0 },
+  META:  { marketCap: 1.50e12, trailingPE: 27,  forwardPE: 24,  priceToSales: 9,   priceToBook: 9,  dividendYield: 0.0033, eps: 20.3, beta: 1.2 },
+  AMD:   { marketCap: 2.50e11, trailingPE: 95,  forwardPE: 28,  priceToSales: 11,  priceToBook: 4,  dividendYield: 0,      eps: 1.5,  beta: 1.8 },
+  AVGO:  { marketCap: 8.00e11, trailingPE: 75,  forwardPE: 32,  priceToSales: 22,  priceToBook: 17, dividendYield: 0.0120, eps: 2.2,  beta: 1.1 },
+  PLTR:  { marketCap: 2.20e11, trailingPE: 240, forwardPE: 175, priceToSales: 65,  priceToBook: 50, dividendYield: 0,      eps: 0.13, beta: 2.4 },
+  TSM:   { marketCap: 9.50e11, trailingPE: 28,  forwardPE: 23,  priceToSales: 11,  priceToBook: 7,  dividendYield: 0.0140, eps: 6.6,  beta: 1.1 },
+
+  V:     { marketCap: 5.80e11, trailingPE: 32,  forwardPE: 28,  priceToSales: 17,  priceToBook: 15, dividendYield: 0.0078, eps: 9.5,  beta: 0.9 },
+  MA:    { marketCap: 4.70e11, trailingPE: 38,  forwardPE: 33,  priceToSales: 17,  priceToBook: 60, dividendYield: 0.0061, eps: 13.0, beta: 1.0 },
+  PYPL:  { marketCap: 7.50e10, trailingPE: 19,  forwardPE: 14,  priceToSales: 2.6, priceToBook: 4.5,dividendYield: 0,      eps: 4.0,  beta: 1.4 },
+  COIN:  { marketCap: 7.50e10, trailingPE: 65,  forwardPE: 45,  priceToSales: 14,  priceToBook: 9,  dividendYield: 0,      eps: 4.7,  beta: 3.4 },
+  HOOD:  { marketCap: 3.50e10, trailingPE: 65,  forwardPE: 45,  priceToSales: 15,  priceToBook: 6,  dividendYield: 0,      eps: 0.7,  beta: 2.1 },
+  SOFI:  { marketCap: 1.60e10, trailingPE: 95,  forwardPE: 50,  priceToSales: 5.5, priceToBook: 2.2,dividendYield: 0,      eps: 0.16, beta: 1.9 },
+  AFRM:  { marketCap: 1.80e10, trailingPE: null,forwardPE: 95,  priceToSales: 8,   priceToBook: 9,  dividendYield: 0,      eps: -0.3, beta: 3.5 },
+  NU:    { marketCap: 6.50e10, trailingPE: 35,  forwardPE: 25,  priceToSales: 9,   priceToBook: 7,  dividendYield: 0,      eps: 0.4,  beta: 1.3 },
+
+  NEE:   { marketCap: 1.65e11, trailingPE: 22,  forwardPE: 22,  priceToSales: 6.5, priceToBook: 3.3,dividendYield: 0.0270, eps: 3.6,  beta: 0.6 },
+  CEG:   { marketCap: 9.00e10, trailingPE: 35,  forwardPE: 33,  priceToSales: 4,   priceToBook: 7,  dividendYield: 0.0045, eps: 8.5,  beta: 1.0 },
+  VST:   { marketCap: 5.00e10, trailingPE: 28,  forwardPE: 28,  priceToSales: 3.2, priceToBook: 9,  dividendYield: 0.0050, eps: 5.4,  beta: 1.2 },
+  FSLR:  { marketCap: 2.50e10, trailingPE: 17,  forwardPE: 13,  priceToSales: 4.8, priceToBook: 2.7,dividendYield: 0,      eps: 13.6, beta: 1.4 },
+  ENPH:  { marketCap: 1.00e10, trailingPE: 90,  forwardPE: 32,  priceToSales: 4,   priceToBook: 7,  dividendYield: 0,      eps: 0.8,  beta: 1.9 },
+  XOM:   { marketCap: 4.80e11, trailingPE: 14,  forwardPE: 13,  priceToSales: 1.4, priceToBook: 2,  dividendYield: 0.0335, eps: 7.8,  beta: 0.9 },
+  CVX:   { marketCap: 2.80e11, trailingPE: 16,  forwardPE: 14,  priceToSales: 1.5, priceToBook: 1.9,dividendYield: 0.0430, eps: 9.5,  beta: 1.0 },
+  TSLA:  { marketCap: 8.00e11, trailingPE: 70,  forwardPE: 90,  priceToSales: 11,  priceToBook: 14, dividendYield: 0,      eps: 3.6,  beta: 2.3 },
+};
 
 const TTL_NEWS = 15 * 60 * 1000;
 const TTL_STOCK = 5 * 60 * 1000;
 const NEWS_CACHE_KEY = 'newsdash:cache:v2';
-const STOCK_CACHE_KEY = 'newsdash:stocks:v1';
+const STOCK_CACHE_KEY = 'newsdash:stocks:v2';
 const STARRED_KEY = 'newsdash:starred:v1';
 const STARRED_STOCKS_KEY = 'newsdash:starredStocks:v1';
 const READ_KEY = 'newsdash:read:v1';
@@ -98,6 +118,7 @@ const PROXY_JSON = [
 ];
 
 const TOPIC_LABEL = { ai: 'AI', fintech: 'Fintech', energy: 'Energy' };
+const SECTOR_COLOR = { ai: 'var(--ai)', fintech: 'var(--fintech)', energy: 'var(--energy)' };
 
 // ======================= State =======================
 
@@ -115,8 +136,6 @@ const state = {
   settings: loadSettings(),
   loading: false,
   errors: [],
-  expandedTicker: null,
-  expandedRange: '1mo',
   keyboardIdx: -1,
 };
 
@@ -304,6 +323,12 @@ async function fetchViaProxy(feed, proxy) {
   return parseRssXml(text);
 }
 
+function extractHnPoints(description) {
+  if (!description) return 0;
+  const m = String(description).match(/Points:\s*(\d+)/i);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
 async function fetchFeed(feed) {
   let lastErr;
   for (const proxy of NEWS_PROXIES) {
@@ -327,12 +352,6 @@ async function fetchFeed(feed) {
     }
   }
   throw lastErr || new Error('all proxies failed');
-}
-
-function extractHnPoints(description) {
-  if (!description) return 0;
-  const m = String(description).match(/Points:\s*(\d+)/i);
-  return m ? parseInt(m[1], 10) : 0;
 }
 
 let renderScheduled = false;
@@ -369,7 +388,6 @@ async function loadNews({ force = false } = {}) {
   const buffer = new Map();
   for (const a of state.articles) buffer.set(a.link || a.guid, a);
 
-  let completed = 0;
   let failures = 0;
 
   await Promise.all(enabled.map(async (feed) => {
@@ -383,8 +401,6 @@ async function loadNews({ force = false } = {}) {
       scheduleRender();
     } catch {
       failures++;
-    } finally {
-      completed++;
     }
   }));
 
@@ -445,116 +461,4 @@ function clusterArticles(articles) {
     clusters.push(group);
   }
   return clusters;
-}
-
-// ======================= Stock fetching =======================
-
-async function fetchJsonViaProxies(url) {
-  let lastErr;
-  for (const proxy of PROXY_JSON) {
-    try {
-      const res = await fetch(proxy(url), { cache: 'no-store' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
-    } catch (e) { lastErr = e; }
-  }
-  throw lastErr || new Error('all proxies failed');
-}
-
-function summarizeChart(result) {
-  const meta = result.meta || {};
-  const ts = result.timestamp || [];
-  const closes = result.indicators?.quote?.[0]?.close || [];
-  const points = [];
-  for (let i = 0; i < ts.length; i++) {
-    if (closes[i] != null) points.push({ t: ts[i] * 1000, c: closes[i] });
-  }
-  return {
-    price: meta.regularMarketPrice,
-    prevClose: meta.chartPreviousClose ?? meta.previousClose,
-    currency: meta.currency || 'USD',
-    fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh,
-    fiftyTwoWeekLow: meta.fiftyTwoWeekLow,
-    volume: meta.regularMarketVolume,
-    exchange: meta.exchangeName,
-    points,
-    fetchedAt: Date.now(),
-  };
-}
-
-async function fetchStockChart(ticker, range = '1mo', interval = '1d') {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}&includePrePost=false`;
-  const data = await fetchJsonViaProxies(url);
-  const result = data?.chart?.result?.[0];
-  if (!result) throw new Error('no chart data');
-  return summarizeChart(result);
-}
-
-async function fetchQuoteBatch(tickers) {
-  const symbols = tickers.join(',');
-  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbols)}`;
-  try {
-    const data = await fetchJsonViaProxies(url);
-    return data?.quoteResponse?.result || [];
-  } catch {
-    return [];
-  }
-}
-
-async function loadStocks({ force = false } = {}) {
-  const cached = readStockCache();
-  if (!force && cached && Date.now() - cached.fetchedAt < TTL_STOCK) {
-    state.stocks = cached.stocks;
-    state.stocksFetchedAt = cached.fetchedAt;
-    if (state.view === 'stocks') render();
-    return;
-  }
-  if (cached && !Object.keys(state.stocks).length) {
-    state.stocks = cached.stocks;
-    state.stocksFetchedAt = cached.fetchedAt;
-    if (state.view === 'stocks') render();
-  }
-  setSpinner(true);
-  let failures = 0;
-  await Promise.all(STOCKS.map(async (s) => {
-    try {
-      const summary = await fetchStockChart(s.ticker, '1mo', '1d');
-      state.stocks[s.ticker] = { ...(state.stocks[s.ticker] || {}), ...s, ...summary };
-      if (state.view === 'stocks') scheduleRender();
-    } catch {
-      failures++;
-    }
-  }));
-
-  // Fundamentals (one batched request).
-  const quotes = await fetchQuoteBatch(STOCKS.map((s) => s.ticker));
-  for (const q of quotes) {
-    const sym = q.symbol;
-    if (!sym || !state.stocks[sym]) continue;
-    state.stocks[sym] = {
-      ...state.stocks[sym],
-      marketCap: q.marketCap,
-      trailingPE: q.trailingPE,
-      forwardPE: q.forwardPE,
-      priceToSales: q.priceToSalesTrailing12Months,
-      priceToBook: q.priceToBook,
-      dividendYield: q.trailingAnnualDividendYield ?? q.dividendYield,
-      avgVolume: q.averageDailyVolume3Month,
-      eps: q.epsTrailingTwelveMonths,
-      beta: q.beta,
-      changePct: q.regularMarketChangePercent,
-    };
-  }
-
-  state.stocksFetchedAt = Date.now();
-  writeStockCache(state.stocks);
-  setSpinner(false);
-  if (failures && failures < STOCKS.length) toast(`${failures} ticker${failures > 1 ? 's' : ''} failed`);
-  else if (failures === STOCKS.length) toast('Stock data unavailable');
-  if (state.view === 'stocks') render();
-}
-
-async function fetchStockRange(ticker, rangeKey) {
-  const cfg = RANGES.find((r) => r.key === rangeKey) || RANGES[2];
-  return fetchStockChart(ticker, cfg.range, cfg.interval);
 }
