@@ -85,7 +85,7 @@ function setupKeyboard() {
 }
 
 function moveCursor(delta) {
-  const sel = state.view === 'stocks' ? '.stock-card' : '.card-wrap';
+  const sel = state.view === 'stocks' ? '.stock-panel' : '.card-wrap';
   const els = $$(sel);
   if (!els.length) return;
   state.keyboardIdx = Math.max(0, Math.min(els.length - 1, state.keyboardIdx + delta));
@@ -94,15 +94,12 @@ function moveCursor(delta) {
 }
 
 function openCursor() {
-  const sel = state.view === 'stocks' ? '.stock-card' : '.card-wrap';
-  const els = $$(sel);
+  if (state.view !== 'news') return;
+  const els = $$('.card-wrap');
   const el = els[state.keyboardIdx];
   if (!el) return;
-  if (state.view === 'stocks') openStock(el.dataset.ticker);
-  else {
-    const link = el.dataset.link;
-    if (link) window.open(link, '_blank', 'noopener');
-  }
+  const link = el.dataset.link;
+  if (link) window.open(link, '_blank', 'noopener');
 }
 
 function refresh() {

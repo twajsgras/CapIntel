@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'v8';
+const VERSION = 'v9';
 const SHELL_CACHE = `capintel-shell-${VERSION}`;
 const RUNTIME_CACHE = `capintel-runtime-${VERSION}`;
 

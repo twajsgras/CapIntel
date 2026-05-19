@@ -17,7 +17,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="CapIntel" />
 
-  <link rel="stylesheet" href="styles.css?v=8" />
+  <link rel="stylesheet" href="styles.css?v=9" />
 </head>
 <body>
   <header class="app-header">
@@ -78,17 +78,13 @@
     </form>
   </dialog>
 
-  <dialog id="stockDialog" class="dialog stock-dialog">
-    <div class="dialog-inner stock-inner" id="stockInner"></div>
-  </dialog>
-
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script>
     (function () {
       if (!('serviceWorker' in navigator)) return;
-      if (sessionStorage.getItem('sw-reset-v8')) return;
-      sessionStorage.setItem('sw-reset-v8', '1');
+      if (sessionStorage.getItem('sw-reset-v9')) return;
+      sessionStorage.setItem('sw-reset-v9', '1');
       (async () => {
         try {
           const regs = await navigator.serviceWorker.getRegistrations();
@@ -103,8 +99,8 @@
       })();
     })();
   </script>
-  <script src="app-1.js?v=8" defer></script>
-  <script src="app-2.js?v=8" defer></script>
-  <script src="app-3.js?v=8" defer></script>
+  <script src="app-1.js?v=9" defer></script>
+  <script src="app-2.js?v=9" defer></script>
+  <script src="app-3.js?v=9" defer></script>
 </body>
 </html>
