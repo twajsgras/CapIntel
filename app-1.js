@@ -3,7 +3,7 @@
 // ======================= Config =======================
 
 const FEEDS = [
-  // AI — mainstream
+  // AI
   { id: 'tc-ai',    topic: 'ai',      name: 'TechCrunch AI',      url: 'https://techcrunch.com/category/artificial-intelligence/feed/' },
   { id: 'verge-ai', topic: 'ai',      name: 'The Verge AI',       url: 'https://www.theverge.com/rss/ai-artificial-intelligence/index.xml' },
   { id: 'mit-ai',   topic: 'ai',      name: 'MIT Tech Review',    url: 'https://www.technologyreview.com/topic/artificial-intelligence/feed' },
@@ -33,8 +33,7 @@ const FEEDS = [
   { id: 'conphys',  topic: 'energy',  name: 'Construction Physics',url:'https://www.construction-physics.com/feed' },
 ];
 
-const STOCKS = [
-  // AI
+const STOCKS_CATALOG = [
   { ticker: 'NVDA',  name: 'Nvidia',                 sector: 'ai' },
   { ticker: 'MSFT',  name: 'Microsoft',              sector: 'ai' },
   { ticker: 'GOOGL', name: 'Alphabet',               sector: 'ai' },
@@ -43,7 +42,6 @@ const STOCKS = [
   { ticker: 'AVGO',  name: 'Broadcom',               sector: 'ai' },
   { ticker: 'PLTR',  name: 'Palantir',               sector: 'ai' },
   { ticker: 'TSM',   name: 'TSMC',                   sector: 'ai' },
-  // Fintech
   { ticker: 'V',     name: 'Visa',                   sector: 'fintech' },
   { ticker: 'MA',    name: 'Mastercard',             sector: 'fintech' },
   { ticker: 'PYPL',  name: 'PayPal',                 sector: 'fintech' },
@@ -52,7 +50,6 @@ const STOCKS = [
   { ticker: 'SOFI',  name: 'SoFi',                   sector: 'fintech' },
   { ticker: 'AFRM',  name: 'Affirm',                 sector: 'fintech' },
   { ticker: 'NU',    name: 'Nu Holdings',            sector: 'fintech' },
-  // Energy
   { ticker: 'NEE',   name: 'NextEra Energy',         sector: 'energy' },
   { ticker: 'CEG',   name: 'Constellation Energy',   sector: 'energy' },
   { ticker: 'VST',   name: 'Vistra',                 sector: 'energy' },
@@ -63,8 +60,8 @@ const STOCKS = [
   { ticker: 'TSLA',  name: 'Tesla',                  sector: 'energy' },
 ];
 
-// Fallback valuation snapshot. Used when Yahoo's quote endpoint is
-// rate-limited or auth-walled. Refresh by editing periodically.
+const DEFAULT_WATCHLIST = STOCKS_CATALOG.map((s) => s.ticker);
+
 const VALUATION_DEFAULTS = {
   NVDA:  { marketCap: 3.10e12, trailingPE: 50,  forwardPE: 33,  priceToSales: 25,  priceToBook: 45, dividendYield: 0.0001, eps: 2.50, beta: 1.7 },
   MSFT:  { marketCap: 3.10e12, trailingPE: 36,  forwardPE: 31,  priceToSales: 13,  priceToBook: 11, dividendYield: 0.0072, eps: 11.8, beta: 0.9 },
@@ -74,7 +71,6 @@ const VALUATION_DEFAULTS = {
   AVGO:  { marketCap: 8.00e11, trailingPE: 75,  forwardPE: 32,  priceToSales: 22,  priceToBook: 17, dividendYield: 0.0120, eps: 2.2,  beta: 1.1 },
   PLTR:  { marketCap: 2.20e11, trailingPE: 240, forwardPE: 175, priceToSales: 65,  priceToBook: 50, dividendYield: 0,      eps: 0.13, beta: 2.4 },
   TSM:   { marketCap: 9.50e11, trailingPE: 28,  forwardPE: 23,  priceToSales: 11,  priceToBook: 7,  dividendYield: 0.0140, eps: 6.6,  beta: 1.1 },
-
   V:     { marketCap: 5.80e11, trailingPE: 32,  forwardPE: 28,  priceToSales: 17,  priceToBook: 15, dividendYield: 0.0078, eps: 9.5,  beta: 0.9 },
   MA:    { marketCap: 4.70e11, trailingPE: 38,  forwardPE: 33,  priceToSales: 17,  priceToBook: 60, dividendYield: 0.0061, eps: 13.0, beta: 1.0 },
   PYPL:  { marketCap: 7.50e10, trailingPE: 19,  forwardPE: 14,  priceToSales: 2.6, priceToBook: 4.5,dividendYield: 0,      eps: 4.0,  beta: 1.4 },
@@ -83,7 +79,6 @@ const VALUATION_DEFAULTS = {
   SOFI:  { marketCap: 1.60e10, trailingPE: 95,  forwardPE: 50,  priceToSales: 5.5, priceToBook: 2.2,dividendYield: 0,      eps: 0.16, beta: 1.9 },
   AFRM:  { marketCap: 1.80e10, trailingPE: null,forwardPE: 95,  priceToSales: 8,   priceToBook: 9,  dividendYield: 0,      eps: -0.3, beta: 3.5 },
   NU:    { marketCap: 6.50e10, trailingPE: 35,  forwardPE: 25,  priceToSales: 9,   priceToBook: 7,  dividendYield: 0,      eps: 0.4,  beta: 1.3 },
-
   NEE:   { marketCap: 1.65e11, trailingPE: 22,  forwardPE: 22,  priceToSales: 6.5, priceToBook: 3.3,dividendYield: 0.0270, eps: 3.6,  beta: 0.6 },
   CEG:   { marketCap: 9.00e10, trailingPE: 35,  forwardPE: 33,  priceToSales: 4,   priceToBook: 7,  dividendYield: 0.0045, eps: 8.5,  beta: 1.0 },
   VST:   { marketCap: 5.00e10, trailingPE: 28,  forwardPE: 28,  priceToSales: 3.2, priceToBook: 9,  dividendYield: 0.0050, eps: 5.4,  beta: 1.2 },
@@ -94,17 +89,30 @@ const VALUATION_DEFAULTS = {
   TSLA:  { marketCap: 8.00e11, trailingPE: 70,  forwardPE: 90,  priceToSales: 11,  priceToBook: 14, dividendYield: 0,      eps: 3.6,  beta: 2.3 },
 };
 
+const RANGES = [
+  { key: '1d',  label: '1D',  range: '1d',  interval: '5m',  long: 'Today' },
+  { key: '5d',  label: '1W',  range: '5d',  interval: '30m', long: 'Past Week' },
+  { key: '1mo', label: '1M',  range: '1mo', interval: '1d',  long: 'Past Month' },
+  { key: '3mo', label: '3M',  range: '3mo', interval: '1d',  long: 'Past 3 Months' },
+  { key: 'ytd', label: 'YTD', range: 'ytd', interval: '1d',  long: 'Year to Date' },
+  { key: '1y',  label: '1Y',  range: '1y',  interval: '1d',  long: 'Past Year' },
+  { key: '5y',  label: '5Y',  range: '5y',  interval: '1wk', long: 'Past 5 Years' },
+];
+const DEFAULT_RANGE = '5d';
+
 const TTL_NEWS = 15 * 60 * 1000;
 const TTL_STOCK = 5 * 60 * 1000;
 const NEWS_CACHE_KEY = 'newsdash:cache:v2';
-const STOCK_CACHE_KEY = 'newsdash:stocks:v2';
+const STOCK_CACHE_KEY = 'newsdash:stocks:v3';
 const STARRED_KEY = 'newsdash:starred:v1';
-const STARRED_STOCKS_KEY = 'newsdash:starredStocks:v1';
 const READ_KEY = 'newsdash:read:v1';
 const SETTINGS_KEY = 'newsdash:settings:v1';
 const THEME_KEY = 'newsdash:theme';
 const VIEW_KEY = 'newsdash:view';
 const TOPIC_KEY = 'newsdash:topic';
+const WATCHLIST_KEY = 'capintel:watchlist:v1';
+const CUSTOM_STOCKS_KEY = 'capintel:customStocks:v1';
+const PANEL_RANGE_KEY = 'capintel:panelRanges:v1';
 
 const NEWS_PROXIES = [
   { kind: 'json', build: (url) => `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}&count=30` },
@@ -118,7 +126,6 @@ const PROXY_JSON = [
 ];
 
 const TOPIC_LABEL = { ai: 'AI', fintech: 'Fintech', energy: 'Energy' };
-const SECTOR_COLOR = { ai: 'var(--ai)', fintech: 'var(--fintech)', energy: 'var(--energy)' };
 
 // ======================= State =======================
 
@@ -131,12 +138,16 @@ const state = {
   stocks: {},
   stocksFetchedAt: 0,
   starred: new Set(JSON.parse(localStorage.getItem(STARRED_KEY) || '[]')),
-  starredStocks: new Set(JSON.parse(localStorage.getItem(STARRED_STOCKS_KEY) || '[]')),
   read: new Map(Object.entries(JSON.parse(localStorage.getItem(READ_KEY) || '{}'))),
   settings: loadSettings(),
   loading: false,
   errors: [],
   keyboardIdx: -1,
+  watchlist: loadWatchlist(),
+  customStocks: JSON.parse(localStorage.getItem(CUSTOM_STOCKS_KEY) || '{}'),
+  panelRange: JSON.parse(localStorage.getItem(PANEL_RANGE_KEY) || '{}'),
+  searchResults: [],
+  searching: false,
 };
 
 function loadSettings() {
@@ -148,13 +159,28 @@ function loadSettings() {
   FEEDS.forEach((f) => (def[f.id] = true));
   return def;
 }
-function saveSettings()       { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); }
-function saveStarred()        { localStorage.setItem(STARRED_KEY, JSON.stringify([...state.starred])); }
-function saveStarredStocks()  { localStorage.setItem(STARRED_STOCKS_KEY, JSON.stringify([...state.starredStocks])); }
+function loadWatchlist() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(WATCHLIST_KEY) || 'null');
+    if (Array.isArray(saved) && saved.length) return saved;
+  } catch {}
+  return [...DEFAULT_WATCHLIST];
+}
+function saveSettings()      { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); }
+function saveStarred()       { localStorage.setItem(STARRED_KEY, JSON.stringify([...state.starred])); }
+function saveWatchlist()     { localStorage.setItem(WATCHLIST_KEY, JSON.stringify(state.watchlist)); }
+function saveCustomStocks()  { localStorage.setItem(CUSTOM_STOCKS_KEY, JSON.stringify(state.customStocks)); }
+function savePanelRanges()   { localStorage.setItem(PANEL_RANGE_KEY, JSON.stringify(state.panelRange)); }
 function saveRead() {
   const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
   for (const [k, v] of state.read) if (v < cutoff) state.read.delete(k);
   localStorage.setItem(READ_KEY, JSON.stringify(Object.fromEntries(state.read)));
+}
+
+function tickerMeta(ticker) {
+  return STOCKS_CATALOG.find((s) => s.ticker === ticker)
+      || state.customStocks[ticker]
+      || { ticker, name: ticker, sector: null };
 }
 
 // ======================= Utilities =======================
@@ -220,6 +246,14 @@ function formatPrice(n) {
 function fmtNum(n, digits = 1) {
   if (n == null || !Number.isFinite(n)) return '—';
   return n.toFixed(digits);
+}
+
+function debounce(fn, ms) {
+  let t;
+  return function (...args) {
+    clearTimeout(t);
+    t = setTimeout(() => fn.apply(this, args), ms);
+  };
 }
 
 // ======================= Cache =======================
