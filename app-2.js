@@ -29,11 +29,13 @@ function summarizeChart(result) {
     volume: meta.regularMarketVolume,
     exchange: meta.exchangeName,
     points,
+    fetchedAt: Date.now(),
   };
 }
 
-async function fetchStockChart(ticker, range = '3mo', interval = '1d') {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}&includePrePost=false`;
+async function fetchStockChart(ticker, rangeKey) {
+  const cfg = RANGES.find((r) => r.key === rangeKey) || RANGES[1];
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${cfg.interval}&range=${cfg.range}&includePrePost=false`;
   const data = await fetchJsonViaProxies(url);
   const result = data?.chart?.result?.[0];
   if (!result) throw new Error('no chart data');
@@ -41,6 +43,7 @@ async function fetchStockChart(ticker, range = '3mo', interval = '1d') {
 }
 
 async function fetchQuoteBatch(tickers) {
+  if (!tickers.length) return [];
   const symbols = tickers.join(',');
   const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbols)}`;
   try {
@@ -48,6 +51,46 @@ async function fetchQuoteBatch(tickers) {
     return data?.quoteResponse?.result || [];
   } catch {
     return [];
+  }
+}
+
+async function searchTickers(query) {
+  if (!query || !query.trim()) return [];
+  const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=10&newsCount=0`;
+  try {
+    const data = await fetchJsonViaProxies(url);
+    return (data?.quotes || [])
+      .filter((q) => q.symbol && (q.quoteType === 'EQUITY' || q.quoteType === 'ETF'))
+      .map((q) => ({
+        ticker: q.symbol,
+        name: q.shortname || q.longname || q.symbol,
+        type: q.quoteType,
+        exchange: q.exchDisp || '',
+      }));
+  } catch {
+    return [];
+  }
+}
+
+async function fetchTickerRange(ticker, rangeKey) {
+  try {
+    const summary = await fetchStockChart(ticker, rangeKey);
+    const existing = state.stocks[ticker] || {};
+    state.stocks[ticker] = {
+      ...existing,
+      price: summary.price,
+      prevClose: summary.prevClose,
+      fiftyTwoWeekHigh: summary.fiftyTwoWeekHigh,
+      fiftyTwoWeekLow: summary.fiftyTwoWeekLow,
+      volume: summary.volume,
+      exchange: summary.exchange,
+      currency: summary.currency,
+      _ranges: { ...(existing._ranges || {}), [rangeKey]: { points: summary.points, fetchedAt: Date.now() } },
+    };
+    writeStockCache(state.stocks);
+    return summary.points;
+  } catch {
+    return null;
   }
 }
 
@@ -65,19 +108,35 @@ async function loadStocks({ force = false } = {}) {
     if (state.view === 'stocks') render();
   }
   setSpinner(true);
+  const tickers = state.watchlist;
   let failures = 0;
-  await Promise.all(STOCKS.map(async (s) => {
+  await Promise.all(tickers.map(async (ticker) => {
     try {
-      const summary = await fetchStockChart(s.ticker, '3mo', '1d');
-      state.stocks[s.ticker] = { ...(state.stocks[s.ticker] || {}), ...s, ...summary };
+      const summary = await fetchStockChart(ticker, DEFAULT_RANGE);
+      const meta = tickerMeta(ticker);
+      const existing = state.stocks[ticker] || {};
+      state.stocks[ticker] = {
+        ...existing,
+        ticker, name: meta.name, sector: meta.sector,
+        price: summary.price,
+        prevClose: summary.prevClose,
+        currency: summary.currency,
+        fiftyTwoWeekHigh: summary.fiftyTwoWeekHigh,
+        fiftyTwoWeekLow: summary.fiftyTwoWeekLow,
+        volume: summary.volume,
+        exchange: summary.exchange,
+        _ranges: {
+          ...(existing._ranges || {}),
+          [DEFAULT_RANGE]: { points: summary.points, fetchedAt: Date.now() },
+        },
+      };
       if (state.view === 'stocks') scheduleRender();
     } catch {
       failures++;
     }
   }));
 
-  // Live fundamentals (often blocked by Yahoo auth).
-  const quotes = await fetchQuoteBatch(STOCKS.map((s) => s.ticker));
+  const quotes = await fetchQuoteBatch(tickers);
   for (const q of quotes) {
     const sym = q.symbol;
     if (!sym || !state.stocks[sym]) continue;
@@ -96,111 +155,96 @@ async function loadStocks({ force = false } = {}) {
     };
   }
 
-  // Fill gaps with hardcoded snapshot.
-  for (const s of STOCKS) {
-    const cur = state.stocks[s.ticker] || { ...s };
-    const def = VALUATION_DEFAULTS[s.ticker] || {};
+  for (const ticker of tickers) {
+    const cur = state.stocks[ticker] || { ticker };
+    const def = VALUATION_DEFAULTS[ticker] || {};
     for (const k of Object.keys(def)) {
       if (cur[k] == null) cur[k] = def[k];
     }
-    state.stocks[s.ticker] = cur;
+    state.stocks[ticker] = cur;
   }
 
   state.stocksFetchedAt = Date.now();
   writeStockCache(state.stocks);
   setSpinner(false);
-  if (failures && failures < STOCKS.length) toast(`${failures} ticker${failures > 1 ? 's' : ''} failed`);
-  else if (failures === STOCKS.length) toast('Stock data unavailable');
+  if (failures && failures < tickers.length) toast(`${failures} ticker${failures > 1 ? 's' : ''} failed`);
+  else if (failures === tickers.length && tickers.length) toast('Stock data unavailable');
   if (state.view === 'stocks') render();
+}
+
+// ======================= Watchlist management =======================
+
+async function addTicker(ticker, name, sector) {
+  ticker = ticker.toUpperCase();
+  if (state.watchlist.includes(ticker)) {
+    toast(`${ticker} is already in your watchlist`);
+    return;
+  }
+  state.watchlist.push(ticker);
+  if (!STOCKS_CATALOG.find((s) => s.ticker === ticker)) {
+    state.customStocks[ticker] = { ticker, name: name || ticker, sector: sector || null };
+    saveCustomStocks();
+  }
+  saveWatchlist();
+  toast(`Added ${ticker}`);
+  try {
+    const summary = await fetchStockChart(ticker, DEFAULT_RANGE);
+    const meta = tickerMeta(ticker);
+    state.stocks[ticker] = {
+      ticker, name: meta.name, sector: meta.sector,
+      price: summary.price,
+      prevClose: summary.prevClose,
+      currency: summary.currency,
+      fiftyTwoWeekHigh: summary.fiftyTwoWeekHigh,
+      fiftyTwoWeekLow: summary.fiftyTwoWeekLow,
+      volume: summary.volume,
+      exchange: summary.exchange,
+      _ranges: { [DEFAULT_RANGE]: { points: summary.points, fetchedAt: Date.now() } },
+      ...(VALUATION_DEFAULTS[ticker] || {}),
+    };
+    writeStockCache(state.stocks);
+    render();
+  } catch {
+    toast(`Couldn’t fetch chart for ${ticker}`);
+    render();
+  }
+}
+
+function removeTicker(ticker) {
+  state.watchlist = state.watchlist.filter((t) => t !== ticker);
+  saveWatchlist();
+  toast(`Removed ${ticker}`);
+  render();
 }
 
 // ======================= SVG charts =======================
 
-function pathFromPoints(points, w, h, pad = 2) {
-  if (!points.length) return { line: '', area: '' };
+function rhChartSvg(points, isUp) {
+  const w = 800, h = 200, pad = 4;
+  if (!points || points.length < 2) return '<div class="chart-empty">No data</div>';
   const ys = points.map((p) => p.c);
   const min = Math.min(...ys);
   const max = Math.max(...ys);
   const range = max - min || 1;
   const stepX = (w - 2 * pad) / Math.max(points.length - 1, 1);
-  const coords = points.map((p, i) => {
-    const x = pad + i * stepX;
-    const y = pad + (h - 2 * pad) * (1 - (p.c - min) / range);
-    return [x, y];
-  });
-  const line = coords.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}`).join(' ');
-  return { line, min, max };
-}
-
-// Build a normalized peer-overlay chart for a stock's sector.
-function peerChartSvg(currentTicker, sector) {
-  const w = 800, h = 200, pad = 10;
-  const peers = STOCKS.filter((p) => p.sector === sector);
-  const series = peers.map((p) => {
-    const s = state.stocks[p.ticker];
-    const pts = (s && s.points) || [];
-    if (pts.length < 2) return null;
-    const baseline = pts[0].c;
-    if (!baseline) return null;
-    return {
-      ticker: p.ticker,
-      isCurrent: p.ticker === currentTicker,
-      values: pts.map((pt) => ((pt.c - baseline) / baseline) * 100),
-    };
-  }).filter(Boolean);
-
-  if (!series.length) return '<div class="chart-empty">No data</div>';
-
-  let min = Infinity, max = -Infinity;
-  for (const s of series) for (const v of s.values) {
-    if (v < min) min = v;
-    if (v > max) max = v;
-  }
-  const pad_pct = (max - min) * 0.05 || 1;
-  min -= pad_pct; max += pad_pct;
-  const range = max - min || 1;
-
-  const zeroY = pad + (h - 2 * pad) * (1 - (0 - min) / range);
-  const zeroLine = (zeroY >= pad && zeroY <= h - pad)
-    ? `<line x1="${pad}" y1="${zeroY.toFixed(1)}" x2="${w - pad}" y2="${zeroY.toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3 4"/>`
-    : '';
-
-  const peerPaths = series.filter((s) => !s.isCurrent).map((s) => {
-    const stepX = (w - 2 * pad) / Math.max(s.values.length - 1, 1);
-    const d = s.values.map((v, i) => {
-      const x = pad + i * stepX;
-      const y = pad + (h - 2 * pad) * (1 - (v - min) / range);
-      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
-    }).join(' ');
-    return `<path d="${d}" fill="none" stroke="var(--muted)" stroke-width="1" stroke-opacity="0.35" stroke-linecap="round" stroke-linejoin="round"/>`;
-  }).join('');
-
-  const current = series.find((s) => s.isCurrent);
-  let currentPath = '';
-  let endLabel = '';
-  if (current) {
-    const stepX = (w - 2 * pad) / Math.max(current.values.length - 1, 1);
-    const coords = current.values.map((v, i) => [pad + i * stepX, pad + (h - 2 * pad) * (1 - (v - min) / range)]);
-    const d = coords.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
-    const last = coords[coords.length - 1];
-    const lastVal = current.values[current.values.length - 1];
-    const color = lastVal >= 0 ? 'var(--up)' : 'var(--down)';
-    currentPath = `<path d="${d}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="3.5" fill="${color}"/>`;
-    endLabel = `<text x="${(w - pad - 4).toFixed(1)}" y="${(last[1] - 8).toFixed(1)}" text-anchor="end" fill="${color}" font-size="11" font-weight="700">${lastVal >= 0 ? '+' : ''}${lastVal.toFixed(1)}%</text>`;
-  }
-
-  return `<svg class="peer-chart-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
-    ${zeroLine}
-    ${peerPaths}
-    ${currentPath}
-    ${endLabel}
-  </svg>
-  <div class="chart-axis">
-    <span>${min.toFixed(1)}%</span>
-    <span class="muted">3 month · ${escapeHtml(currentTicker)} vs ${TOPIC_LABEL[sector]} peers</span>
-    <span>${max.toFixed(1)}%</span>
-  </div>`;
+  const coords = points.map((p, i) => [
+    pad + i * stepX,
+    pad + (h - 2 * pad) * (1 - (p.c - min) / range),
+  ]);
+  const line = coords.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
+  const area = line + ` L${(w - pad).toFixed(1)} ${(h - pad).toFixed(1)} L${pad.toFixed(1)} ${(h - pad).toFixed(1)} Z`;
+  const color = isUp ? 'var(--up)' : 'var(--down)';
+  const gradId = `g-${Math.random().toString(36).slice(2, 8)}`;
+  return `<svg viewBox="0 0 ${w} ${h}" class="rh-chart" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="${gradId}" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0%" stop-color="${color}" stop-opacity="0.32"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${area}" fill="url(#${gradId})"/>
+    <path d="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
 }
 
 // ======================= Render =======================
@@ -234,20 +278,6 @@ function visibleArticles() {
   return list;
 }
 
-function visibleStocks() {
-  let list = STOCKS.map((s) => state.stocks[s.ticker] || { ...s, points: [] });
-  if (state.topic === 'starred') list = list.filter((s) => state.starredStocks.has(s.ticker));
-  else if (state.topic !== 'all' && state.topic !== 'hot') list = list.filter((s) => s.sector === state.topic);
-  if (state.query) {
-    const q = state.query.toLowerCase();
-    list = list.filter((s) =>
-      s.ticker.toLowerCase().includes(q) ||
-      s.name.toLowerCase().includes(q)
-    );
-  }
-  return list;
-}
-
 function renderSkeletons() {
   const feed = $('#feed');
   feed.innerHTML = '';
@@ -255,11 +285,7 @@ function renderSkeletons() {
   for (let i = 0; i < 6; i++) {
     const sk = document.createElement('div');
     sk.className = 'skeleton';
-    sk.innerHTML = `
-      <div class="sk-line short"></div>
-      <div class="sk-line title"></div>
-      <div class="sk-line body"></div>
-      <div class="sk-line body-2"></div>`;
+    sk.innerHTML = `<div class="sk-line short"></div><div class="sk-line title"></div><div class="sk-line body"></div><div class="sk-line body-2"></div>`;
     feed.appendChild(sk);
   }
 }
@@ -271,31 +297,18 @@ function renderStockSkeletons() {
   for (let i = 0; i < 4; i++) {
     const sk = document.createElement('div');
     sk.className = 'skeleton stock-panel-skel';
-    sk.innerHTML = `
-      <div class="sk-line short"></div>
-      <div class="sk-line title"></div>
-      <div class="sk-chart"></div>
-      <div class="sk-line body"></div>`;
+    sk.innerHTML = `<div class="sk-line short"></div><div class="sk-line title"></div><div class="sk-chart"></div><div class="sk-line body"></div>`;
     feed.appendChild(sk);
   }
 }
 
 function renderEmpty(view) {
   if (view === 'stocks') {
-    if (state.topic === 'starred') {
-      return `<div class="empty"><span class="empty-emoji">☆</span><h3>No starred stocks</h3><p>Tap a stock's star to add it here.</p></div>`;
-    }
-    if (state.query) {
-      return `<div class="empty"><span class="empty-emoji">🔍</span><h3>No matches</h3><p>Nothing matches "${escapeHtml(state.query)}".</p></div>`;
+    if (!state.watchlist.length) {
+      return `<div class="empty"><span class="empty-emoji">📊</span><h3>Your watchlist is empty</h3><p>Search above to add tickers.</p></div>`;
     }
     const sample = state.errors.slice(0, 3).map(escapeHtml).join('<br>');
-    return `<div class="empty">
-      <span class="empty-emoji">📊</span>
-      <h3>Couldn't load stocks</h3>
-      <p>Yahoo Finance proxy fetch failed.</p>
-      <button id="emptyRetry">Retry</button>
-      ${sample ? `<details class="err-details"><summary>Show errors</summary><pre>${sample}</pre></details>` : ''}
-    </div>`;
+    return `<div class="empty"><span class="empty-emoji">📊</span><h3>Couldn’t load stocks</h3><p>Yahoo Finance proxy fetch failed.</p><button id="emptyRetry">Retry</button>${sample ? `<details class="err-details"><summary>Show errors</summary><pre>${sample}</pre></details>` : ''}</div>`;
   }
   if (state.topic === 'starred') {
     return `<div class="empty"><span class="empty-emoji">☆</span><h3>No starred articles</h3><p>Tap the star on a card to save it for later.</p></div>`;
@@ -308,13 +321,7 @@ function renderEmpty(view) {
   }
   if (!state.articles.length && !state.loading) {
     const sample = state.errors.slice(0, 3).map(escapeHtml).join('<br>');
-    return `<div class="empty">
-      <span class="empty-emoji">📡</span>
-      <h3>Couldn't load articles</h3>
-      <p>All proxies failed.</p>
-      <button id="emptyRetry">Retry</button>
-      ${sample ? `<details class="err-details"><summary>Show errors</summary><pre>${sample}</pre></details>` : ''}
-    </div>`;
+    return `<div class="empty"><span class="empty-emoji">📡</span><h3>Couldn’t load articles</h3><p>All proxies failed.</p><button id="emptyRetry">Retry</button>${sample ? `<details class="err-details"><summary>Show errors</summary><pre>${sample}</pre></details>` : ''}</div>`;
   }
   return `<div class="empty"><span class="empty-emoji">📰</span><h3>Nothing here yet</h3><p>No articles in this topic.</p></div>`;
 }
@@ -370,7 +377,6 @@ function renderNews() {
     if (retry) retry.addEventListener('click', () => loadNews({ force: true }));
     return;
   }
-
   const showGroups = !state.query && state.topic !== 'starred' && state.topic !== 'hot';
   let html = '';
   let lastBucket = '';
@@ -426,43 +432,65 @@ function attachNewsHandlers(feed) {
   );
 }
 
-// ============== Stock panel (dashboard) ==============
+// ============== Robinhood-style stock panels ==============
 
-function stockPanelHtml(s) {
-  const change = (s.price != null && s.prevClose != null) ? (s.price - s.prevClose) : null;
-  const changePct = (change != null && s.prevClose) ? (change / s.prevClose) * 100 : (s.changePct ?? null);
-  const isUp = changePct != null ? changePct >= 0 : null;
-  const color = isUp == null ? 'var(--muted)' : isUp ? 'var(--up)' : 'var(--down)';
-  const arrow = isUp == null ? '·' : isUp ? '▲' : '▼';
-  const dollarChange = change != null ? `${isUp ? '+' : ''}$${Math.abs(change).toFixed(2)}` : '';
-  const pctStr = changePct != null ? `${isUp ? '+' : ''}${changePct.toFixed(2)}%` : '—';
-  const starred = state.starredStocks.has(s.ticker);
+function stockPanelHtml(ticker) {
+  const s = state.stocks[ticker] || { ticker, ...tickerMeta(ticker) };
+  const meta = tickerMeta(ticker);
+  const rangeKey = state.panelRange[ticker] || DEFAULT_RANGE;
+  const cfg = RANGES.find((r) => r.key === rangeKey) || RANGES[1];
+  const rangeData = s._ranges && s._ranges[rangeKey];
+  const points = rangeData ? rangeData.points : (s.points || []);
 
-  const peers = STOCKS.filter((p) => p.sector === s.sector);
+  let change = null, changePct = null;
+  if (points.length >= 2) {
+    const first = points[0].c, last = points[points.length - 1].c;
+    change = last - first;
+    changePct = (change / first) * 100;
+  } else if (s.price != null && s.prevClose != null) {
+    change = s.price - s.prevClose;
+    changePct = (change / s.prevClose) * 100;
+  }
+  const isUp = changePct == null ? true : changePct >= 0;
+  const color = changePct == null ? 'var(--muted)' : isUp ? 'var(--up)' : 'var(--down)';
+  const arrow = changePct == null ? '·' : isUp ? '▲' : '▼';
+  const dollarStr = change != null ? `${isUp ? '+' : ''}$${Math.abs(change).toFixed(2)}` : '—';
+  const pctStr = changePct != null ? `(${isUp ? '+' : ''}${changePct.toFixed(2)}%)` : '';
+
+  const sectorPill = meta.sector
+    ? `<span class="topic-pill topic-${meta.sector}">${TOPIC_LABEL[meta.sector]}</span>`
+    : '';
+
+  const rangeTabs = RANGES.map((r) =>
+    `<button class="range-tab ${r.key === rangeKey ? 'active' : ''}" data-ticker="${escapeHtml(ticker)}" data-range="${r.key}">${r.label}</button>`
+  ).join('');
+
+  const loading = !rangeData && !points.length;
+  const chart = loading
+    ? '<div class="chart-loading"></div>'
+    : rhChartSvg(points, isUp);
 
   return `
-    <div class="stock-panel" data-ticker="${escapeHtml(s.ticker)}">
+    <div class="stock-panel" data-ticker="${escapeHtml(ticker)}">
       <div class="stock-panel-head">
         <div class="stock-panel-id">
-          <div class="stock-panel-ticker">
-            ${escapeHtml(s.ticker)}
-            <span class="topic-pill topic-${s.sector}">${TOPIC_LABEL[s.sector]}</span>
-          </div>
-          <div class="stock-panel-name">${escapeHtml(s.name)}</div>
+          <div class="stock-panel-ticker">${escapeHtml(ticker)} ${sectorPill}</div>
+          <div class="stock-panel-name">${escapeHtml(s.name || meta.name)}</div>
         </div>
-        <div class="stock-panel-price">
-          <div class="big-price-sm">$${formatPrice(s.price)}</div>
-          <div class="big-change-sm" style="color:${color}">${arrow} ${dollarChange} (${pctStr})</div>
-        </div>
-        <button class="icon-mini star-btn ${starred ? 'starred' : ''}" data-ticker="${escapeHtml(s.ticker)}" aria-label="${starred ? 'Unstar' : 'Star'}">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+        <button class="icon-mini remove-btn" data-ticker="${escapeHtml(ticker)}" aria-label="Remove" title="Remove">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
       </div>
 
-      <div class="panel-chart">${peerChartSvg(s.ticker, s.sector)}</div>
+      <div class="stock-panel-price-row">
+        <div class="big-price">$${formatPrice(s.price)}</div>
+        <div class="big-change" style="color:${color}">${arrow} ${dollarStr} ${pctStr} <span class="period-label">${cfg.long}</span></div>
+      </div>
 
-      <div class="panel-legend">
-        ${peers.map((p) => `<span class="legend-item ${p.ticker === s.ticker ? 'is-current' : ''}"><i></i>${escapeHtml(p.ticker)}</span>`).join('')}
+      <div class="panel-chart ${loading ? 'is-loading' : ''}" style="color:${color}">${chart}</div>
+
+      <div class="range-tabs-wrap">
+        <div class="range-tabs">${rangeTabs}</div>
       </div>
 
       <div class="panel-metrics">
@@ -478,51 +506,98 @@ function stockPanelHtml(s) {
     </div>`;
 }
 
+function searchDropdownHtml() {
+  if (!state.searchResults.length && !state.searching && !state.query) return '';
+  if (state.searching) {
+    return `<div class="search-dropdown"><div class="search-empty">Searching…</div></div>`;
+  }
+  if (!state.searchResults.length) {
+    return `<div class="search-dropdown"><div class="search-empty">No results</div></div>`;
+  }
+  return `<div class="search-dropdown">${state.searchResults.map((r) => {
+    const inList = state.watchlist.includes(r.ticker);
+    return `<button class="search-result" data-ticker="${escapeHtml(r.ticker)}" data-name="${escapeHtml(r.name)}" ${inList ? 'disabled' : ''}>
+      <span class="sr-ticker">${escapeHtml(r.ticker)}</span>
+      <span class="sr-name">${escapeHtml(r.name)}</span>
+      <span class="sr-exch">${escapeHtml(r.exchange || '')}</span>
+      <span class="sr-add">${inList ? '✓' : '+ Add'}</span>
+    </button>`;
+  }).join('')}</div>`;
+}
+
 function renderStocks() {
   const feed = $('#feed');
   feed.className = 'feed feed-stocks-panels';
-  const list = visibleStocks();
-  if (!list.length) {
-    feed.innerHTML = renderEmpty('stocks');
-    const retry = $('#emptyRetry');
-    if (retry) retry.addEventListener('click', () => loadStocks({ force: true }));
+  if (!state.watchlist.length) {
+    feed.innerHTML = `<div class="watchlist-controls">${searchDropdownHtml()}</div>${renderEmpty('stocks')}`;
+    attachSearchHandlers(feed);
     return;
   }
-  if (list.every((s) => !s.points || !s.points.length)) {
-    if (!Object.keys(state.stocks).length) { renderStockSkeletons(); return; }
+  if (!Object.keys(state.stocks).length) {
+    feed.innerHTML = `<div class="watchlist-controls">${searchDropdownHtml()}</div>`;
+    renderStockSkeletons();
+    return;
   }
 
-  const groupBySector = state.topic === 'all' && !state.query;
-  let html = '';
-  if (groupBySector) {
-    for (const sector of ['ai', 'fintech', 'energy']) {
-      const inSector = list.filter((s) => s.sector === sector);
-      if (!inSector.length) continue;
-      html += `<h3 class="sector-header sector-${sector}">${TOPIC_LABEL[sector]} <span class="sector-count">${inSector.length}</span></h3>`;
-      for (const s of inSector) html += stockPanelHtml(s);
-    }
-  } else {
-    for (const s of list) html += stockPanelHtml(s);
-  }
+  let html = `<div class="watchlist-controls">${searchDropdownHtml()}</div>`;
+  for (const ticker of state.watchlist) html += stockPanelHtml(ticker);
   feed.innerHTML = html;
 
-  $$('.star-btn', feed).forEach((btn) =>
+  attachSearchHandlers(feed);
+  attachPanelHandlers(feed);
+}
+
+function attachSearchHandlers(feed) {
+  $$('.search-result', feed).forEach((btn) =>
     btn.addEventListener('click', (e) => {
-      e.preventDefault(); e.stopPropagation();
+      e.preventDefault();
       const t = btn.dataset.ticker;
-      if (state.starredStocks.has(t)) state.starredStocks.delete(t);
-      else state.starredStocks.add(t);
-      saveStarredStocks();
-      render();
+      const n = btn.dataset.name;
+      addTicker(t, n);
+      state.query = '';
+      state.searchResults = [];
+      const search = $('#search');
+      if (search) { search.value = ''; search.parentElement.classList.remove('has-value'); }
+    })
+  );
+}
+
+function attachPanelHandlers(feed) {
+  $$('.range-tab', feed).forEach((btn) =>
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const ticker = btn.dataset.ticker;
+      const range = btn.dataset.range;
+      state.panelRange[ticker] = range;
+      savePanelRanges();
+      const cur = state.stocks[ticker];
+      const have = cur && cur._ranges && cur._ranges[range];
+      if (!have) {
+        render();
+        await fetchTickerRange(ticker, range);
+        render();
+      } else {
+        render();
+      }
+    })
+  );
+  $$('.remove-btn', feed).forEach((btn) =>
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      removeTicker(btn.dataset.ticker);
     })
   );
 }
 
 function render() {
-  $('#search').placeholder = state.view === 'stocks' ? 'Filter by ticker or name…' : 'Filter loaded articles…';
+  const search = $('#search');
+  if (search) {
+    search.placeholder = state.view === 'stocks' ? 'Search to add a ticker (e.g. AAPL, Apple)…' : 'Filter loaded articles…';
+  }
   const hotChip = $('.chip-hot');
   if (hotChip) hotChip.style.display = state.view === 'stocks' ? 'none' : '';
-  if (state.view === 'stocks' && state.topic === 'hot') setTopic('all');
+  const chips = $('#chips');
+  if (chips) chips.style.display = state.view === 'stocks' ? 'none' : '';
   if (state.view === 'stocks') renderStocks();
   else renderNews();
 }
