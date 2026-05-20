@@ -113,6 +113,7 @@ const TOPIC_KEY = 'newsdash:topic';
 const WATCHLIST_KEY = 'capintel:watchlist:v1';
 const CUSTOM_STOCKS_KEY = 'capintel:customStocks:v1';
 const PANEL_RANGE_KEY = 'capintel:panelRanges:v1';
+const EXPANDED_KEY = 'capintel:expanded:v1';
 
 const NEWS_PROXIES = [
   { kind: 'json', build: (url) => `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}&count=30` },
@@ -146,6 +147,7 @@ const state = {
   watchlist: loadWatchlist(),
   customStocks: JSON.parse(localStorage.getItem(CUSTOM_STOCKS_KEY) || '{}'),
   panelRange: JSON.parse(localStorage.getItem(PANEL_RANGE_KEY) || '{}'),
+  expanded: new Set(JSON.parse(localStorage.getItem(EXPANDED_KEY) || '[]')),
   searchResults: [],
   searching: false,
 };
@@ -171,6 +173,7 @@ function saveStarred()       { localStorage.setItem(STARRED_KEY, JSON.stringify(
 function saveWatchlist()     { localStorage.setItem(WATCHLIST_KEY, JSON.stringify(state.watchlist)); }
 function saveCustomStocks()  { localStorage.setItem(CUSTOM_STOCKS_KEY, JSON.stringify(state.customStocks)); }
 function savePanelRanges()   { localStorage.setItem(PANEL_RANGE_KEY, JSON.stringify(state.panelRange)); }
+function saveExpanded()      { localStorage.setItem(EXPANDED_KEY, JSON.stringify([...state.expanded])); }
 function saveRead() {
   const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
   for (const [k, v] of state.read) if (v < cutoff) state.read.delete(k);
@@ -246,6 +249,11 @@ function formatPrice(n) {
 function fmtNum(n, digits = 1) {
   if (n == null || !Number.isFinite(n)) return '—';
   return n.toFixed(digits);
+}
+function hasFundamentals(s) {
+  if (!s) return false;
+  return s.marketCap != null || s.trailingPE != null || s.priceToSales != null
+      || s.forwardPE != null || s.priceToBook != null || s.dividendYield != null;
 }
 
 function debounce(fn, ms) {
