@@ -54,6 +54,38 @@ async function fetchQuoteBatch(tickers) {
   }
 }
 
+// Finnhub fundamentals — works for any ticker, doesn't need a CORS proxy.
+async function fetchFinnhubMetrics(ticker) {
+  if (!FINNHUB_KEY) return null;
+  const url = `https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(ticker)}&metric=all&token=${FINNHUB_KEY}`;
+  try {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const m = data && data.metric;
+    if (!m) return null;
+    return {
+      marketCap: m.marketCapitalization != null ? m.marketCapitalization * 1e6 : null,
+      trailingPE: m.peTTM ?? m.peExclExtraTTM ?? null,
+      forwardPE: null,
+      priceToSales: m.psTTM ?? null,
+      priceToBook: m.pbAnnual ?? m.pbQuarterly ?? null,
+      dividendYield: m.currentDividendYieldTTM != null ? m.currentDividendYieldTTM / 100 : null,
+      eps: m.epsTTM ?? m.epsBasicExclExtraItemsTTM ?? null,
+      beta: m.beta ?? null,
+    };
+  } catch { return null; }
+}
+
+function applyMetricsToStock(ticker, metrics) {
+  if (!metrics || !state.stocks[ticker]) return;
+  const cur = state.stocks[ticker];
+  for (const k of Object.keys(metrics)) {
+    if (metrics[k] != null && cur[k] == null) cur[k] = metrics[k];
+  }
+  state.stocks[ticker] = cur;
+}
+
 function applyQuoteToStock(sym, q) {
   if (!state.stocks[sym]) return;
   state.stocks[sym] = {
@@ -158,6 +190,14 @@ async function loadStocks({ force = false } = {}) {
     if (q.symbol) applyQuoteToStock(q.symbol, q);
   }
 
+  // Fill any tickers that are still missing fundamentals via Finnhub.
+  const needMetrics = tickers.filter((t) => !hasFundamentals(state.stocks[t]));
+  await Promise.all(needMetrics.map(async (t) => {
+    const m = await fetchFinnhubMetrics(t);
+    if (m) applyMetricsToStock(t, m);
+  }));
+
+  // Last-resort hardcoded snapshot for the 24 built-in tickers.
   for (const ticker of tickers) {
     const cur = state.stocks[ticker] || { ticker };
     const def = VALUATION_DEFAULTS[ticker] || {};
@@ -207,6 +247,10 @@ async function addTicker(ticker, name, sector) {
     };
     const quotes = await fetchQuoteBatch([ticker]);
     if (quotes[0] && quotes[0].symbol) applyQuoteToStock(quotes[0].symbol, quotes[0]);
+    if (!hasFundamentals(state.stocks[ticker])) {
+      const m = await fetchFinnhubMetrics(ticker);
+      if (m) applyMetricsToStock(ticker, m);
+    }
     writeStockCache(state.stocks);
     render();
   } catch {
@@ -283,7 +327,8 @@ function miniSparkSvg(points, isUp) {
 // ======================= Render =======================
 
 function visibleArticles() {
-  let list = state.articles;
+  // Hide articles from sources that have been toggled off in Settings.
+  let list = state.articles.filter((a) => state.settings[a.sourceId] !== false);
   if (state.topic === 'starred') {
     list = list.filter((a) => state.starred.has(articleId(a)));
   } else if (state.topic === 'hot') {

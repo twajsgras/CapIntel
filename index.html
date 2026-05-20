@@ -5,19 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>CapIntel</title>
   <meta name="description" content="Personal news + stock dashboard for AI, Fintech, and Energy." />
-
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" content="#0b0d10" media="(prefers-color-scheme: dark)" />
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="CapIntel" />
-
-  <link rel="stylesheet" href="styles.css?v=11" />
+  <link rel="stylesheet" href="styles.css?v=12" />
 </head>
 <body>
   <header class="app-header">
@@ -35,12 +32,10 @@
         </button>
       </div>
     </div>
-
     <div class="seg" role="tablist" id="seg">
       <button class="seg-btn active" data-view="news" role="tab">Feed</button>
       <button class="seg-btn" data-view="stocks" role="tab">Stocks</button>
     </div>
-
     <div class="chips" role="tablist" id="chips">
       <button class="chip active" data-topic="all" role="tab">All</button>
       <button class="chip chip-hot" data-topic="hot" role="tab" aria-label="Trending">🔥 Hot</button>
@@ -49,42 +44,29 @@
       <button class="chip" data-topic="energy" role="tab">Energy</button>
       <button class="chip chip-starred" data-topic="starred" role="tab" aria-label="Starred only">★</button>
     </div>
-
     <div class="search-wrap">
       <input id="search" type="search" placeholder="Filter loaded articles…" autocomplete="off" spellcheck="false" />
       <button id="clearSearch" class="clear-search" aria-label="Clear">×</button>
     </div>
   </header>
-
   <main id="feed" class="feed" aria-live="polite"></main>
-
   <div id="pullHint" class="pull-hint" aria-hidden="true">↓ Release to refresh</div>
-
   <button id="refreshBtn" class="fab" aria-label="Refresh" title="Refresh (R)">
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A8 8 0 1 0 19.73 14h-2.08a6 6 0 1 1-1.42-6.36L13 11h7V4z"/></svg>
   </button>
-
   <dialog id="settingsDialog" class="dialog">
     <form method="dialog" class="dialog-inner">
-      <header class="dialog-header">
-        <h2>Sources</h2>
-        <button class="icon-btn" value="cancel" aria-label="Close">×</button>
-      </header>
+      <header class="dialog-header"><h2>Sources</h2><button class="icon-btn" value="cancel" aria-label="Close">×</button></header>
       <div id="sourceList" class="source-list"></div>
-      <footer class="dialog-footer">
-        <button type="button" id="resetSources" class="btn-secondary">Reset</button>
-        <button value="ok" class="btn-primary">Done</button>
-      </footer>
+      <footer class="dialog-footer"><button type="button" id="resetSources" class="btn-secondary">Reset</button><button value="ok" class="btn-primary">Done</button></footer>
     </form>
   </dialog>
-
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-
   <script>
     (function () {
       if (!('serviceWorker' in navigator)) return;
-      if (sessionStorage.getItem('sw-reset-v11')) return;
-      sessionStorage.setItem('sw-reset-v11', '1');
+      if (sessionStorage.getItem('sw-reset-v12')) return;
+      sessionStorage.setItem('sw-reset-v12', '1');
       (async () => {
         try {
           const regs = await navigator.serviceWorker.getRegistrations();
@@ -93,14 +75,12 @@
             const keys = await caches.keys();
             await Promise.all(keys.map((k) => caches.delete(k)));
           }
-        } finally {
-          location.reload();
-        }
+        } finally { location.reload(); }
       })();
     })();
   </script>
-  <script src="app-1.js?v=11" defer></script>
-  <script src="app-2.js?v=11" defer></script>
-  <script src="app-3.js?v=11" defer></script>
+  <script src="app-1.js?v=12" defer></script>
+  <script src="app-2.js?v=12" defer></script>
+  <script src="app-3.js?v=12" defer></script>
 </body>
 </html>
