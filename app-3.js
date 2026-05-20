@@ -80,30 +80,9 @@ function setupKeyboard() {
     const key = e.key.toLowerCase();
     if (key === 'r') { e.preventDefault(); refresh(); }
     else if (key === '/') { e.preventDefault(); $('#search').focus(); }
-    else if (key === 'j') { e.preventDefault(); moveCursor(1); }
-    else if (key === 'k') { e.preventDefault(); moveCursor(-1); }
-    else if (key === 'enter') openCursor();
     else if (key === '1') setView('news');
     else if (key === '2') setView('stocks');
   });
-}
-
-function moveCursor(delta) {
-  const sel = state.view === 'stocks' ? '.stock-panel' : '.card-wrap';
-  const els = $$(sel);
-  if (!els.length) return;
-  state.keyboardIdx = Math.max(0, Math.min(els.length - 1, state.keyboardIdx + delta));
-  els.forEach((el, i) => el.classList.toggle('focused', i === state.keyboardIdx));
-  els[state.keyboardIdx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-}
-
-function openCursor() {
-  if (state.view !== 'news') return;
-  const els = $$('.card-wrap');
-  const el = els[state.keyboardIdx];
-  if (!el) return;
-  const link = el.dataset.link;
-  if (link) window.open(link, '_blank', 'noopener');
 }
 
 function refresh() {

@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'v10';
+const VERSION = 'v11';
 const SHELL_CACHE = `capintel-shell-${VERSION}`;
 const RUNTIME_CACHE = `capintel-runtime-${VERSION}`;
 
@@ -39,10 +39,8 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
-
   const url = new URL(req.url);
   const sameOrigin = url.origin === self.location.origin;
-
   if (sameOrigin) {
     e.respondWith(
       fetch(req).then((res) => {
@@ -55,7 +53,6 @@ self.addEventListener('fetch', (e) => {
     );
     return;
   }
-
   e.respondWith(
     caches.open(RUNTIME_CACHE).then(async (cache) => {
       const cached = await cache.match(req);
