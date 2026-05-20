@@ -54,6 +54,23 @@ async function fetchQuoteBatch(tickers) {
   }
 }
 
+function applyQuoteToStock(sym, q) {
+  if (!state.stocks[sym]) return;
+  state.stocks[sym] = {
+    ...state.stocks[sym],
+    marketCap: q.marketCap,
+    trailingPE: q.trailingPE,
+    forwardPE: q.forwardPE,
+    priceToSales: q.priceToSalesTrailing12Months,
+    priceToBook: q.priceToBook,
+    dividendYield: q.trailingAnnualDividendYield ?? q.dividendYield,
+    avgVolume: q.averageDailyVolume3Month,
+    eps: q.epsTrailingTwelveMonths,
+    beta: q.beta,
+    changePct: q.regularMarketChangePercent,
+  };
+}
+
 async function searchTickers(query) {
   if (!query || !query.trim()) return [];
   const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=10&newsCount=0`;
@@ -138,21 +155,7 @@ async function loadStocks({ force = false } = {}) {
 
   const quotes = await fetchQuoteBatch(tickers);
   for (const q of quotes) {
-    const sym = q.symbol;
-    if (!sym || !state.stocks[sym]) continue;
-    state.stocks[sym] = {
-      ...state.stocks[sym],
-      marketCap: q.marketCap,
-      trailingPE: q.trailingPE,
-      forwardPE: q.forwardPE,
-      priceToSales: q.priceToSalesTrailing12Months,
-      priceToBook: q.priceToBook,
-      dividendYield: q.trailingAnnualDividendYield ?? q.dividendYield,
-      avgVolume: q.averageDailyVolume3Month,
-      eps: q.epsTrailingTwelveMonths,
-      beta: q.beta,
-      changePct: q.regularMarketChangePercent,
-    };
+    if (q.symbol) applyQuoteToStock(q.symbol, q);
   }
 
   for (const ticker of tickers) {
@@ -202,6 +205,8 @@ async function addTicker(ticker, name, sector) {
       _ranges: { [DEFAULT_RANGE]: { points: summary.points, fetchedAt: Date.now() } },
       ...(VALUATION_DEFAULTS[ticker] || {}),
     };
+    const quotes = await fetchQuoteBatch([ticker]);
+    if (quotes[0] && quotes[0].symbol) applyQuoteToStock(quotes[0].symbol, quotes[0]);
     writeStockCache(state.stocks);
     render();
   } catch {
@@ -212,15 +217,24 @@ async function addTicker(ticker, name, sector) {
 
 function removeTicker(ticker) {
   state.watchlist = state.watchlist.filter((t) => t !== ticker);
+  state.expanded.delete(ticker);
   saveWatchlist();
+  saveExpanded();
   toast(`Removed ${ticker}`);
+  render();
+}
+
+function toggleExpanded(ticker) {
+  if (state.expanded.has(ticker)) state.expanded.delete(ticker);
+  else state.expanded.add(ticker);
+  saveExpanded();
   render();
 }
 
 // ======================= SVG charts =======================
 
-function rhChartSvg(points, isUp) {
-  const w = 800, h = 200, pad = 4;
+function rhChartSvg(points, isUp, width, height) {
+  const w = width || 800, h = height || 200, pad = 4;
   if (!points || points.length < 2) return '<div class="chart-empty">No data</div>';
   const ys = points.map((p) => p.c);
   const min = Math.min(...ys);
@@ -244,6 +258,25 @@ function rhChartSvg(points, isUp) {
     </defs>
     <path d="${area}" fill="url(#${gradId})"/>
     <path d="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+function miniSparkSvg(points, isUp) {
+  const w = 120, h = 36, pad = 2;
+  if (!points || points.length < 2) return '<svg viewBox="0 0 120 36" class="mini-spark"></svg>';
+  const ys = points.map((p) => p.c);
+  const min = Math.min(...ys);
+  const max = Math.max(...ys);
+  const range = max - min || 1;
+  const stepX = (w - 2 * pad) / Math.max(points.length - 1, 1);
+  const line = points.map((p, i) => {
+    const x = pad + i * stepX;
+    const y = pad + (h - 2 * pad) * (1 - (p.c - min) / range);
+    return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(' ');
+  const color = isUp ? 'var(--up)' : 'var(--down)';
+  return `<svg viewBox="0 0 ${w} ${h}" class="mini-spark" preserveAspectRatio="none">
+    <path d="${line}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>`;
 }
 
@@ -294,10 +327,10 @@ function renderStockSkeletons() {
   const feed = $('#feed');
   feed.innerHTML = '';
   feed.className = 'feed feed-stocks-panels';
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 8; i++) {
     const sk = document.createElement('div');
-    sk.className = 'skeleton stock-panel-skel';
-    sk.innerHTML = `<div class="sk-line short"></div><div class="sk-line title"></div><div class="sk-chart"></div><div class="sk-line body"></div>`;
+    sk.className = 'skeleton stock-row-skel';
+    sk.innerHTML = `<div class="sk-row"></div>`;
     feed.appendChild(sk);
   }
 }
@@ -432,34 +465,70 @@ function attachNewsHandlers(feed) {
   );
 }
 
-// ============== Robinhood-style stock panels ==============
+// ============== Compact stock rows + expanded detail ==============
 
-function stockPanelHtml(ticker) {
+function getRangePoints(s, rangeKey) {
+  const rd = s && s._ranges && s._ranges[rangeKey];
+  return rd ? rd.points : (rangeKey === DEFAULT_RANGE ? s?.points || [] : []);
+}
+
+function computeChange(points, fallbackPrice, fallbackPrev) {
+  if (points && points.length >= 2) {
+    const first = points[0].c, last = points[points.length - 1].c;
+    return { change: last - first, changePct: ((last - first) / first) * 100, last };
+  }
+  if (fallbackPrice != null && fallbackPrev != null) {
+    return { change: fallbackPrice - fallbackPrev, changePct: ((fallbackPrice - fallbackPrev) / fallbackPrev) * 100, last: fallbackPrice };
+  }
+  return { change: null, changePct: null, last: fallbackPrice };
+}
+
+function stockRowHtml(ticker) {
   const s = state.stocks[ticker] || { ticker, ...tickerMeta(ticker) };
   const meta = tickerMeta(ticker);
+  const rangeKey = state.panelRange[ticker] || DEFAULT_RANGE;
+  const points = getRangePoints(s, rangeKey);
+  const { change, changePct } = computeChange(points, s.price, s.prevClose);
+  const isUp = changePct == null ? true : changePct >= 0;
+  const color = changePct == null ? 'var(--muted)' : isUp ? 'var(--up)' : 'var(--down)';
+  const arrow = changePct == null ? '·' : isUp ? '▲' : '▼';
+  const pctStr = changePct != null ? `${isUp ? '+' : ''}${changePct.toFixed(2)}%` : '—';
+  const expanded = state.expanded.has(ticker);
+
+  const sectorPill = meta.sector
+    ? `<span class="topic-pill topic-${meta.sector}">${TOPIC_LABEL[meta.sector]}</span>`
+    : '';
+
+  const compact = `
+    <button class="stock-row" data-ticker="${escapeHtml(ticker)}" aria-expanded="${expanded ? 'true' : 'false'}">
+      <div class="row-id">
+        <div class="row-ticker">${escapeHtml(ticker)} ${sectorPill}</div>
+        <div class="row-name">${escapeHtml(s.name || meta.name)}</div>
+      </div>
+      <div class="row-spark" style="color:${color}">${miniSparkSvg(points, isUp)}</div>
+      <div class="row-price-block">
+        <div class="row-price">$${formatPrice(s.price)}</div>
+        <div class="row-change" style="color:${color}">${arrow} ${pctStr}</div>
+      </div>
+    </button>`;
+
+  if (!expanded) return `<div class="stock-card" data-ticker="${escapeHtml(ticker)}">${compact}</div>`;
+
+  return `<div class="stock-card is-expanded" data-ticker="${escapeHtml(ticker)}">${compact}${stockExpandedHtml(ticker)}</div>`;
+}
+
+function stockExpandedHtml(ticker) {
+  const s = state.stocks[ticker] || { ticker, ...tickerMeta(ticker) };
   const rangeKey = state.panelRange[ticker] || DEFAULT_RANGE;
   const cfg = RANGES.find((r) => r.key === rangeKey) || RANGES[1];
   const rangeData = s._ranges && s._ranges[rangeKey];
   const points = rangeData ? rangeData.points : (s.points || []);
-
-  let change = null, changePct = null;
-  if (points.length >= 2) {
-    const first = points[0].c, last = points[points.length - 1].c;
-    change = last - first;
-    changePct = (change / first) * 100;
-  } else if (s.price != null && s.prevClose != null) {
-    change = s.price - s.prevClose;
-    changePct = (change / s.prevClose) * 100;
-  }
+  const { change, changePct } = computeChange(points, s.price, s.prevClose);
   const isUp = changePct == null ? true : changePct >= 0;
   const color = changePct == null ? 'var(--muted)' : isUp ? 'var(--up)' : 'var(--down)';
   const arrow = changePct == null ? '·' : isUp ? '▲' : '▼';
   const dollarStr = change != null ? `${isUp ? '+' : ''}$${Math.abs(change).toFixed(2)}` : '—';
   const pctStr = changePct != null ? `(${isUp ? '+' : ''}${changePct.toFixed(2)}%)` : '';
-
-  const sectorPill = meta.sector
-    ? `<span class="topic-pill topic-${meta.sector}">${TOPIC_LABEL[meta.sector]}</span>`
-    : '';
 
   const rangeTabs = RANGES.map((r) =>
     `<button class="range-tab ${r.key === rangeKey ? 'active' : ''}" data-ticker="${escapeHtml(ticker)}" data-range="${r.key}">${r.label}</button>`
@@ -470,40 +539,35 @@ function stockPanelHtml(ticker) {
     ? '<div class="chart-loading"></div>'
     : rhChartSvg(points, isUp);
 
-  return `
-    <div class="stock-panel" data-ticker="${escapeHtml(ticker)}">
-      <div class="stock-panel-head">
-        <div class="stock-panel-id">
-          <div class="stock-panel-ticker">${escapeHtml(ticker)} ${sectorPill}</div>
-          <div class="stock-panel-name">${escapeHtml(s.name || meta.name)}</div>
-        </div>
-        <button class="icon-mini remove-btn" data-ticker="${escapeHtml(ticker)}" aria-label="Remove" title="Remove">
-          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-        </button>
-      </div>
+  const metricsHtml = hasFundamentals(s)
+    ? `<div class="panel-metrics">
+        ${s.marketCap != null ? `<div class="m"><div class="m-label">Mkt Cap</div><div class="m-value">$${formatBig(s.marketCap)}</div></div>` : ''}
+        ${s.trailingPE != null ? `<div class="m"><div class="m-label">P/E</div><div class="m-value">${fmtNum(s.trailingPE)}</div></div>` : ''}
+        ${s.forwardPE != null ? `<div class="m"><div class="m-label">Fwd P/E</div><div class="m-value">${fmtNum(s.forwardPE)}</div></div>` : ''}
+        ${s.priceToSales != null ? `<div class="m"><div class="m-label">P/S</div><div class="m-value">${fmtNum(s.priceToSales)}</div></div>` : ''}
+        ${s.priceToBook != null ? `<div class="m"><div class="m-label">P/B</div><div class="m-value">${fmtNum(s.priceToBook)}</div></div>` : ''}
+        ${s.dividendYield != null ? `<div class="m"><div class="m-label">Yield</div><div class="m-value">${(s.dividendYield * 100).toFixed(2)}%</div></div>` : ''}
+        ${s.eps != null ? `<div class="m"><div class="m-label">EPS</div><div class="m-value">${fmtNum(s.eps, 2)}</div></div>` : ''}
+        ${s.fiftyTwoWeekLow != null && s.fiftyTwoWeekHigh != null ? `<div class="m"><div class="m-label">52w Range</div><div class="m-value">$${formatPrice(s.fiftyTwoWeekLow)}–$${formatPrice(s.fiftyTwoWeekHigh)}</div></div>` : ''}
+      </div>`
+    : `<div class="metrics-unavailable">Fundamentals unavailable for this ticker</div>`;
 
+  return `
+    <div class="stock-expanded">
       <div class="stock-panel-price-row">
         <div class="big-price">$${formatPrice(s.price)}</div>
         <div class="big-change" style="color:${color}">${arrow} ${dollarStr} ${pctStr} <span class="period-label">${cfg.long}</span></div>
       </div>
-
       <div class="panel-chart ${loading ? 'is-loading' : ''}" style="color:${color}">${chart}</div>
-
       <div class="range-tabs-wrap">
         <div class="range-tabs">${rangeTabs}</div>
       </div>
-
-      <div class="panel-metrics">
-        <div class="m"><div class="m-label">Mkt Cap</div><div class="m-value">${s.marketCap != null ? '$' + formatBig(s.marketCap) : '—'}</div></div>
-        <div class="m"><div class="m-label">P/E</div><div class="m-value">${fmtNum(s.trailingPE)}</div></div>
-        <div class="m"><div class="m-label">Fwd P/E</div><div class="m-value">${fmtNum(s.forwardPE)}</div></div>
-        <div class="m"><div class="m-label">P/S</div><div class="m-value">${fmtNum(s.priceToSales)}</div></div>
-        <div class="m"><div class="m-label">P/B</div><div class="m-value">${fmtNum(s.priceToBook)}</div></div>
-        <div class="m"><div class="m-label">Yield</div><div class="m-value">${s.dividendYield != null ? (s.dividendYield * 100).toFixed(2) + '%' : '—'}</div></div>
-        <div class="m"><div class="m-label">EPS</div><div class="m-value">${fmtNum(s.eps, 2)}</div></div>
-        <div class="m"><div class="m-label">52w Range</div><div class="m-value">$${formatPrice(s.fiftyTwoWeekLow)}–$${formatPrice(s.fiftyTwoWeekHigh)}</div></div>
+      ${metricsHtml}
+      <div class="expanded-actions">
+        <button class="btn-secondary remove-btn-text" data-ticker="${escapeHtml(ticker)}">Remove from watchlist</button>
       </div>
-    </div>`;
+    </div>
+  `;
 }
 
 function searchDropdownHtml() {
@@ -540,7 +604,7 @@ function renderStocks() {
   }
 
   let html = `<div class="watchlist-controls">${searchDropdownHtml()}</div>`;
-  for (const ticker of state.watchlist) html += stockPanelHtml(ticker);
+  for (const ticker of state.watchlist) html += stockRowHtml(ticker);
   feed.innerHTML = html;
 
   attachSearchHandlers(feed);
@@ -563,9 +627,15 @@ function attachSearchHandlers(feed) {
 }
 
 function attachPanelHandlers(feed) {
+  $$('.stock-row', feed).forEach((row) =>
+    row.addEventListener('click', (e) => {
+      const ticker = row.dataset.ticker;
+      toggleExpanded(ticker);
+    })
+  );
   $$('.range-tab', feed).forEach((btn) =>
     btn.addEventListener('click', async (e) => {
-      e.preventDefault();
+      e.preventDefault(); e.stopPropagation();
       const ticker = btn.dataset.ticker;
       const range = btn.dataset.range;
       state.panelRange[ticker] = range;
@@ -581,9 +651,9 @@ function attachPanelHandlers(feed) {
       }
     })
   );
-  $$('.remove-btn', feed).forEach((btn) =>
+  $$('.remove-btn-text', feed).forEach((btn) =>
     btn.addEventListener('click', (e) => {
-      e.preventDefault();
+      e.preventDefault(); e.stopPropagation();
       removeTicker(btn.dataset.ticker);
     })
   );
