@@ -3,18 +3,20 @@
 // ======================= Config =======================
 
 const FEEDS = [
-  // AI
+  // AI — all free to read
   { id: 'tc-ai',    topic: 'ai',      name: 'TechCrunch AI',      url: 'https://techcrunch.com/category/artificial-intelligence/feed/' },
   { id: 'verge-ai', topic: 'ai',      name: 'The Verge AI',       url: 'https://www.theverge.com/rss/ai-artificial-intelligence/index.xml' },
-  { id: 'mit-ai',   topic: 'ai',      name: 'MIT Tech Review',    url: 'https://www.technologyreview.com/topic/artificial-intelligence/feed' },
   { id: 'ars-ai',   topic: 'ai',      name: 'Ars Technica AI',    url: 'https://arstechnica.com/ai/feed/' },
   { id: 'hn-ai',    topic: 'ai',      name: 'Hacker News',        url: 'https://hnrss.org/newest?q=AI+OR+LLM+OR+%22machine+learning%22&points=100' },
   { id: 'latent',   topic: 'ai',      name: 'Latent Space',       url: 'https://www.latent.space/feed' },
   { id: 'oneuse',   topic: 'ai',      name: 'One Useful Thing',   url: 'https://www.oneusefulthing.org/feed' },
   { id: 'importai', topic: 'ai',      name: 'Import AI',          url: 'https://importai.substack.com/feed' },
   { id: 'snakeoil', topic: 'ai',      name: 'AI Snake Oil',       url: 'https://www.aisnakeoil.com/feed' },
+  { id: 'intercon', topic: 'ai',      name: 'Interconnects',      url: 'https://www.interconnects.ai/feed' },
+  { id: 'lwiai',    topic: 'ai',      name: 'Last Week in AI',    url: 'https://lastweekin.ai/feed' },
+  { id: 'dwarkesh', topic: 'ai',      name: 'Dwarkesh Patel',     url: 'https://www.dwarkesh.com/feed' },
 
-  // Fintech
+  // Fintech — all free to read
   { id: 'tc-fin',   topic: 'fintech', name: 'TechCrunch Fintech', url: 'https://techcrunch.com/category/fintech/feed/' },
   { id: 'finextra', topic: 'fintech', name: 'Finextra',           url: 'https://www.finextra.com/rss/headlines.aspx' },
   { id: 'block',    topic: 'fintech', name: 'The Block',          url: 'https://www.theblock.co/rss.xml' },
@@ -23,14 +25,18 @@ const FEEDS = [
   { id: 'netint',   topic: 'fintech', name: 'Net Interest',       url: 'https://www.netinterest.co/feed' },
   { id: 'brain',    topic: 'fintech', name: 'Fintech Brainfood',  url: 'https://www.fintechbrainfood.com/feed' },
   { id: 'bitsmoney',topic: 'fintech', name: 'Bits about Money',   url: 'https://www.bitsaboutmoney.com/feed' },
+  { id: 'twifin',   topic: 'fintech', name: 'This Week in Fintech',url:'https://www.thisweekinfintech.com/feed' },
+  { id: 'generalist',topic:'fintech', name: 'The Generalist',     url: 'https://www.generalist.com/feed' },
+  { id: 'notboring',topic: 'fintech', name: 'Not Boring',         url: 'https://www.notboring.co/feed' },
 
-  // Energy
+  // Energy — all free to read
   { id: 'canary',   topic: 'energy',  name: 'Canary Media',       url: 'https://www.canarymedia.com/articles/rss.xml' },
   { id: 'utildive', topic: 'energy',  name: 'Utility Dive',       url: 'https://www.utilitydive.com/feeds/news/' },
   { id: 'oilprice', topic: 'energy',  name: 'OilPrice.com',       url: 'https://oilprice.com/rss/main' },
   { id: 'heatmap',  topic: 'energy',  name: 'Heatmap News',       url: 'https://heatmap.news/feed' },
   { id: 'volts',    topic: 'energy',  name: 'Volts',              url: 'https://www.volts.wtf/feed' },
   { id: 'conphys',  topic: 'energy',  name: 'Construction Physics',url:'https://www.construction-physics.com/feed' },
+  { id: 'ctvc',     topic: 'energy',  name: 'Climate Tech VC',    url: 'https://climatetechvc.org/feed' },
 ];
 
 const STOCKS_CATALOG = [
@@ -127,6 +133,9 @@ const PROXY_JSON = [
 ];
 
 const TOPIC_LABEL = { ai: 'AI', fintech: 'Fintech', energy: 'Energy' };
+
+// Finnhub free tier — 60 calls/min. Provides fundamentals for any ticker.
+const FINNHUB_KEY = 'd86hbi9r01qgiu45ea0gd86hbi9r01qgiu45ea10';
 
 // ======================= State =======================
 
