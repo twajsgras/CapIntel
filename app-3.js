@@ -46,6 +46,7 @@ function openSettings() {
     cb.addEventListener('change', () => {
       state.settings[cb.dataset.source] = cb.checked;
       saveSettings();
+      render();
     })
   );
   $('#settingsDialog').showModal();
@@ -138,7 +139,7 @@ function init() {
     saveSettings();
     openSettings();
   });
-  $('#settingsDialog').addEventListener('close', () => loadNews({ force: false }));
+  $('#settingsDialog').addEventListener('close', () => render());
 
   const search = $('#search');
   const wrap = search.parentElement;

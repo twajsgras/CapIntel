@@ -190,14 +190,12 @@ async function loadStocks({ force = false } = {}) {
     if (q.symbol) applyQuoteToStock(q.symbol, q);
   }
 
-  // Fill any tickers that are still missing fundamentals via Finnhub.
   const needMetrics = tickers.filter((t) => !hasFundamentals(state.stocks[t]));
   await Promise.all(needMetrics.map(async (t) => {
     const m = await fetchFinnhubMetrics(t);
     if (m) applyMetricsToStock(t, m);
   }));
 
-  // Last-resort hardcoded snapshot for the 24 built-in tickers.
   for (const ticker of tickers) {
     const cur = state.stocks[ticker] || { ticker };
     const def = VALUATION_DEFAULTS[ticker] || {};
@@ -327,8 +325,12 @@ function miniSparkSvg(points, isUp) {
 // ======================= Render =======================
 
 function visibleArticles() {
-  // Hide articles from sources that have been toggled off in Settings.
-  let list = state.articles.filter((a) => state.settings[a.sourceId] !== false);
+  // Drop articles whose source has been removed from FEEDS, AND honor the
+  // per-source toggle from Settings.
+  const validIds = new Set(FEEDS.map((f) => f.id));
+  let list = state.articles.filter((a) =>
+    validIds.has(a.sourceId) && state.settings[a.sourceId] !== false
+  );
   if (state.topic === 'starred') {
     list = list.filter((a) => state.starred.has(articleId(a)));
   } else if (state.topic === 'hot') {
